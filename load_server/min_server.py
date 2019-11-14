@@ -1,8 +1,7 @@
 import numpy as np
 from flask import Flask
 from flask_restplus import Api, Resource, fields
-import time;
-counter = 0
+
 app = Flask(__name__)
 
 api = Api(app, version='1.0', title='CPU Loader', description='loading app',
@@ -21,37 +20,24 @@ def load_cpu(level):
 		fl = float(i/num)
 		tfl = np.tanh(fl)
 
+@ns.route('/ping')
+class Ping(Resource):
+    @ns.doc('test_liveness')
+    @ns.response(200, 'Success')
+    def hello_world():
+       """Check status"""
+       return 'Hello, Loader!'
+
 @ns.route('/create_load/<int:level>')
 @ns.param('level', description='Load Level')
 @ns.response(400, 'Invalid operation')
 class LoadLevel(Resource):
-    # Trying to define a static variable
-    counter = 0
     @ns.doc('load_cpu')
     @ns.marshal_with(srv_state)
     @ns.response(200, 'Success')
     def get(self, level):
         """Load CPU by level. The load will be about level*2 seconds """
-        global counter
-        state = {}
-        counter += 1
-        begin_ts = time.time ()
         load_cpu(level)
-        end_ts = time.time ()
-        state['completed_tasks'] = counter
-        state['current_tasks'] = 1
-        state['duration'] = str(end_ts-begin_ts)
-        return state
-
-@ns.route('/ping')
-class Ping(Resource):
-    @ns.doc('test_liveness')
-    @ns.marshal_with(srv_state)
-    @ns.response(200, 'Success', srv_state)
-    def get (self):
-       """Check status"""
-       return 'Hello, Loader!'
-
 
 if __name__ == '__main__':
-    app.run(debug=True, host = '0.0.0.0', port =5000)
+    app.run(debug=True, host='0.0.0.0')
