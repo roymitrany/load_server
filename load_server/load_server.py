@@ -1,8 +1,11 @@
 import numpy as np
 from flask import Flask
 from flask_restplus import Api, Resource, fields
-import time;
+import time
+import argparse
+
 counter = 0
+num_of_tasks = 0
 app = Flask(__name__)
 
 api = Api(app, version='1.0', title='CPU Loader', description='loading app',
@@ -15,18 +18,22 @@ srv_state = api.model('ServerState', {
     'duration': fields.String(required=False, description='Duration of last task')})
 
 def load_cpu(level):
-	num = level*1000000
-	list = range(0,num)
-	for i in list:
-		fl = float(i/num)
-		tfl = np.tanh(fl)
+    global num_of_tasks
+    num = level*100000
+    a_list = range(0,num)
+    num_of_tasks += 1
+    for i in a_list:
+        fl = float(i/num)
+        tfl = np.tanh(fl)
+    num_of_tasks -= 1
+
 
 @ns.route('/create_load/<int:level>')
 @ns.param('level', description='Load Level')
 @ns.response(400, 'Invalid operation')
 class LoadLevel(Resource):
     # Trying to define a static variable
-    counter = 0
+    #counter = 0
     @ns.doc('load_cpu')
     @ns.marshal_with(srv_state)
     @ns.response(200, 'Success')
@@ -34,14 +41,18 @@ class LoadLevel(Resource):
         """Load CPU by level. The load will be about level*2 seconds """
         global counter
         state = {}
-        counter += 1
         begin_ts = time.time ()
         load_cpu(level)
         end_ts = time.time ()
+        duration_in_millis = int(1000*(end_ts-begin_ts))
+        counter += 1
         state['completed_tasks'] = counter
         state['current_tasks'] = 1
-        state['duration'] = str(end_ts-begin_ts)
+        state['duration'] = str(duration_in_millis)
         return state
+
+
+
 
 @ns.route('/ping')
 class Ping(Resource):
@@ -49,9 +60,26 @@ class Ping(Resource):
     @ns.marshal_with(srv_state)
     @ns.response(200, 'Success', srv_state)
     def get (self):
-       """Check status"""
-       return 'Hello, Loader!'
+        global counter
+        state = {'completed_tasks': counter, 'current_tasks': num_of_tasks}
+        return state
 
+@ns.route('/reset_tasks_counter')
+class Ping(Resource):
+    @ns.doc('reset the completed tasks counter. More convenient that restarting the server')
+    @ns.marshal_with(srv_state)
+    @ns.response(200, 'Success', srv_state)
+    def get (self):
+        global counter
+        counter = 0
+        state = {'completed_tasks': counter, 'current_tasks': num_of_tasks}
+        return state
 
 if __name__ == '__main__':
-    app.run(debug=True, host = '0.0.0.0', port =5000)
+    parser = argparse.ArgumentParser (
+        description='MMMMMMM',
+    )
+    parser.add_argument ('port', type=int)
+    args = parser.parse_args ()
+    port = args.port
+    app.run(debug=True, host = '0.0.0.0', port=port)
