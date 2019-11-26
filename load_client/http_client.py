@@ -7,7 +7,8 @@ num_of_servers = 3
 
 def send_http_load_request(ip_addr, port=5000,load_level=1, timeout=100):
     #print ("generating request....")
-    get_path = "/load/create_load/" + str(load_level)
+    #get_path = "/load/create_load/" + str(load_level)
+    get_path = "/load/queue_load/" + str(load_level)
     #connection.request("GET", get_path)
     #response = connection.getresponse()
     url = "http://" + ip_addr + ":" + str(port) + get_path

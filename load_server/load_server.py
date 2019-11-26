@@ -1,11 +1,23 @@
+import threading
+
 import numpy as np
 from flask import Flask
 from flask_restplus import Api, Resource, fields
 import time
 import argparse
+from queue import Queue
+
+class LoadTask:
+    def __init__(self, task_index, task_load, start_time, res_event):
+        self.index = task_index
+        self.load_level = task_load
+        self.tart_time = start_time
+        self.end_time = 0
+        self.result_event = res_event
 
 counter = 0
 num_of_tasks = 0
+tasks_queue: Queue = Queue()
 app = Flask(__name__)
 
 api = Api(app, version='1.0', title='CPU Loader', description='loading app',
@@ -26,6 +38,16 @@ def load_cpu(level):
         fl = float(i/num)
         tfl = np.tanh(fl)
     num_of_tasks -= 1
+
+
+def dequeue_load_cpu():
+    global tasks_queue
+    while True:
+        task_obj = tasks_queue.get()
+        load_cpu(task_obj.load_level)
+
+        # Notify the main load function that the task is completed
+        task_obj.result_event.set ()
 
 
 @ns.route('/create_load/<int:level>')
@@ -52,6 +74,32 @@ class LoadLevel(Resource):
         return state
 
 
+
+@ns.route('/queue_load/<int:level>')
+@ns.param('level', description='Load Level')
+@ns.response(400, 'Invalid operation')
+class QueueLoad(Resource):
+    # Trying to define a static variable
+    #counter = 0
+    @ns.doc('queue_load_cpu')
+    @ns.marshal_with(srv_state)
+    @ns.response(200, 'Success')
+    def get(self, level):
+        """Insert a new load task to queue """
+        global counter
+        state = {}
+        begin_ts = time.time ()
+        res_event = threading.Event ()
+        task_obj = LoadTask(counter, level, begin_ts, res_event)
+        tasks_queue.put (task_obj)
+        res_event.wait (timeout=60)
+        end_ts = time.time ()
+        duration_in_millis = int(1000*(end_ts-begin_ts))
+        counter += 1
+        state['completed_tasks'] = counter
+        state['current_tasks'] = 1
+        state['duration'] = str(duration_in_millis)
+        return state
 
 
 @ns.route('/ping')
@@ -82,4 +130,9 @@ if __name__ == '__main__':
     parser.add_argument ('port', type=int)
     args = parser.parse_args ()
     port = args.port
+
+    # Run a separate thread that enqueues the tasks queue
+    t = threading.Thread (target=dequeue_load_cpu)
+    t.start ()
+
     app.run(debug=True, host = '0.0.0.0', port=port)
