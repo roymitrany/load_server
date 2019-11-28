@@ -90,14 +90,17 @@ class QueueLoad(Resource):
         begin_ts = time.time ()
         res_event = threading.Event ()
         task_obj = LoadTask(counter, level, begin_ts, res_event)
+        # Tell how long is the queue
+        q_size = 1 #If nothing is running, out task is the only one in the system, so queue size is 1
+        if num_of_tasks>0:
+            q_size = tasks_queue.qsize() + 2 # There is something running, so our task will add 1 to the queue
         tasks_queue.put (task_obj)
-        q_size = tasks_queue.qsize() # after queueing, tell how long is the queue
         res_event.wait (timeout=60)
         end_ts = time.time ()
         duration_in_millis = int(1000*(end_ts-begin_ts))
         counter += 1
         state['completed_tasks'] = counter
-        state['current_tasks'] = q_size
+        state['current_tasks'] = q_size 
         state['duration'] = str(duration_in_millis)
         return state
 
