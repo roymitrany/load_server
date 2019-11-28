@@ -69,7 +69,7 @@ class LoadLevel(Resource):
         duration_in_millis = int(1000*(end_ts-begin_ts))
         counter += 1
         state['completed_tasks'] = counter
-        state['current_tasks'] = 1
+        state['current_tasks'] = tasks_queue.qsize()
         state['duration'] = str(duration_in_millis)
         return state
 
