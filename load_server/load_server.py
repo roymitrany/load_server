@@ -45,7 +45,6 @@ def dequeue_load_cpu():
     while True:
         task_obj = tasks_queue.get()
         load_cpu(task_obj.load_level)
-
         # Notify the main load function that the task is completed
         task_obj.result_event.set ()
 
@@ -69,7 +68,7 @@ class LoadLevel(Resource):
         duration_in_millis = int(1000*(end_ts-begin_ts))
         counter += 1
         state['completed_tasks'] = counter
-        state['current_tasks'] = tasks_queue.qsize()
+        state['current_tasks'] = 2
         state['duration'] = str(duration_in_millis)
         return state
 
@@ -92,12 +91,13 @@ class QueueLoad(Resource):
         res_event = threading.Event ()
         task_obj = LoadTask(counter, level, begin_ts, res_event)
         tasks_queue.put (task_obj)
+        q_size = tasks_queue.qsize() # after queueing, tell how long is the queue
         res_event.wait (timeout=60)
         end_ts = time.time ()
         duration_in_millis = int(1000*(end_ts-begin_ts))
         counter += 1
         state['completed_tasks'] = counter
-        state['current_tasks'] = 1
+        state['current_tasks'] = q_size
         state['duration'] = str(duration_in_millis)
         return state
 
