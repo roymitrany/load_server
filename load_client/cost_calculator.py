@@ -1,6 +1,6 @@
 from typing import Dict, List
 
-class ValueFunc:
+class CostCalculator:
     def __init__(self):
         self.completion_times  = Dict[int, int]
         self.timeouts = 0

@@ -24,9 +24,7 @@ def process_responses(server):
     :param server: The server whose response we are dealing with
     :return:
     '''
-    print ("in process_response 0")
     while True:
-        print ("in process_response 1, tasks completed: " + str())
         for process in server.process_list : # TODO: make it flexible, according to tasks_index
             #print (output.strip ())
             return_code = process.poll ()
@@ -40,10 +38,16 @@ def process_responses(server):
                         print (output.strip ()) # TODO: save the duration somewhere
                         duration_match = re.search(r'duration\": \"([\d]+)', output)
                         duration = int(duration_match.group(1))
-                        server.process_duration_list.append(duration)
+                        server.response_duration_list.append(duration)
                         inc_num_of_completed_tasks()
                         server.process_list.remove(process)
                         server.current_running_tasks -= 1
+                    if output.find ("current_tasks") > -1: # For statistics only. We will not increment counters here
+                        tasks_queue_match = re.search(r'current_tasks\": \"([\d]+)', output)
+                        tasks_queue = int(tasks_queue_match.group(1))
+                        server.response_tasks_queue_list.append(tasks_queue)
+                        server.request_tasks_queue_list.append (server.current_running_tasks)
+
 
         if get_num_of_completed_tasks() >=task_limit:
             print ("Overall tasks completed: " + str (get_num_of_completed_tasks()))
@@ -51,15 +55,22 @@ def process_responses(server):
         sleep(1)
 
 class Server:
+    response_duration_list: List[int]
+
     def __init__(self, ip_addr:str, port:int):
         self.srv_ip = ip_addr
         self.srv_port = port
         self.process_list: List[subprocess.Popen] = []
-        self.total_request_counter = 0
-        self.current_running_tasks = 0
-        self.max_running_tasks = 0
-        self.process_duration_list: List[int] = []
         self.response_thread:threading.Thread = threading.Thread()
+
+        # All the statistics below refer to the particular server
+        self.total_request_counter = 0 # The total number of requests sent by the client to this server
+        self.current_running_tasks = 0 # The number of requests that their response has not arrived yet (measured by client)
+        self.max_running_tasks = 0 # The largest number of tasks that the server had to deal with (measured by client)
+        self.response_duration_list: List[int] = [] # The time measured by server to complete the task, including time waiting in queue
+        self.response_tasks_queue_list: List[int] = [] # The number of tasks that the server documented (including current task)
+        self.request_tasks_queue_list: List[int] = [] # The number of tasks that the client documented when a response arrived (exluding current task)
+
 
 
 

@@ -1,6 +1,6 @@
 import threading
 
-from load_client.data_collector import DataCollector, collect_data
+from load_client.data_collector import DataCollectionManager, collect_data
 from load_client.global_vars import initial_num_of_servers, task_limit, average_rate, max_server_queue_len, \
     avg_load_level, set_simulation_finished
 from load_client.global_vars import get_num_of_completed_tasks, inc_num_of_completed_tasks
@@ -11,7 +11,7 @@ from time import sleep
 
 from load_client.load_balancers import RandomLB, JsqLB
 from load_client.servers_management import ServerManager, Server
-from load_client.value_function import ValueFunc
+from load_client.cost_calculator import CostCalculator
 
 """
 This is the main class to holds a data structure for courses
@@ -28,15 +28,14 @@ value in its special function.
 srv_mgr:ServerManager = ServerManager(initial_num_of_servers)
 lb_obj = JsqLB (srv_mgr)
 #lb_obj = RandomLB (srv_mgr)
-data_collector = DataCollector(srv_mgr)
+data_collector = DataCollectionManager(srv_mgr)
 
-value_func_obj:ValueFunc = ValueFunc()
+value_func_obj:CostCalculator = CostCalculator()
 
 
 def generate_request():
     global lb_obj, value_func_obj
     server_obj:Server = lb_obj.pick_server ()
-    #server_obj:Server = srv_mgr.get_server_obj(server_id)
     if server_obj.current_running_tasks>=max_server_queue_len:
 
         # The queue in the server side is full. Reject the request
@@ -83,7 +82,12 @@ for server in srv_mgr.full_srv_list:
 
 for server in srv_mgr.full_srv_list:
     print ("server %s duration: " % server.srv_port, end=" ")
-    for num in server.process_duration_list:
+    for num in server.response_duration_list:
         print(num, end=" ")
     print("")
+    print ("server %s queue length: " % server.srv_port, end=" ")
+    for num in server.response_tasks_queue_list:
+        print(num, end=" ")
+    print("")
+
 
