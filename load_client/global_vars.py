@@ -41,14 +41,14 @@ initial_num_of_servers = 3
 avg_load_level = 10
 
 # Full list of server IP addresses and ports (we trust the programmer that they have the same length
-full_servers_list = ["35.170.37.1", "35.174.93.186", "52.87.31.244", "127.0.0.1", "127.0.0.1"]
+full_srv_ip_addr_list = ["35.170.37.1", "35.174.93.186", "52.87.31.244", "34.232.193.79", "127.0.0.1"]
 full_srv_port_list = [5000, 5001, 5002, 5003, 5004]
 
 # Amount of time to wait between the time that the server is initiated, until it is available.
 server_startup_time = 1
 
 # Average requests per second
-average_rate = 3
+average_rate = 3.0
 
 #The server's timeout (in seconds)
 server_timeout = 60
@@ -58,7 +58,7 @@ server_timeout = 60
 max_server_queue_len = 5
 
 # the number of tasks to be completed before we stop the test
-task_limit = 50
+task_limit = 100
 
 # Interval in seconds between statistics data collection
 data_collection_interval = 1

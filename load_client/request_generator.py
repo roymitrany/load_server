@@ -1,5 +1,6 @@
 import threading
 
+from load_client.auto_scaler import ThresholdAS
 from load_client.data_collector import DataCollectionManager, collect_data
 from load_client.global_vars import initial_num_of_servers, task_limit, average_rate, max_server_queue_len, \
     avg_load_level, set_simulation_finished
@@ -11,7 +12,7 @@ from time import sleep
 
 from load_client.load_balancers import RandomLB, JsqLB
 from load_client.servers_management import ServerManager, Server
-from load_client.cost_calculator import CostCalculator
+from load_client.reward_calculator import CostCalculator
 
 """
 This is the main class to holds a data structure for courses
@@ -28,6 +29,8 @@ value in its special function.
 srv_mgr:ServerManager = ServerManager(initial_num_of_servers)
 lb_obj = JsqLB (srv_mgr)
 #lb_obj = RandomLB (srv_mgr)
+as_obj = ThresholdAS(srv_mgr)
+
 data_collector = DataCollectionManager(srv_mgr)
 
 value_func_obj:CostCalculator = CostCalculator()
@@ -46,6 +49,7 @@ def generate_request():
 
     # We are good with the queue, send the request
     server_obj.start_req(avg_load_level)
+    as_obj.trigger_scale_in_out ()  # Consider scale out
 
     print ("started  task ", get_tasks_global_index())
     inc_tasks_global_index()
@@ -58,9 +62,8 @@ data_collection_thread.start ()
 for i in range (task_limit):
     time_to_sleep = random.expovariate(average_rate) #TODO: take the timing from an external time generator
     sleep(time_to_sleep)
-    print("------------after sleeping " + str(time_to_sleep))
+    print("------------after sleeping " + str(time_to_sleep) + " Task no. " + str(i))
     generate_request ()
-
 
 # wait until all responses arrive back
 for server in srv_mgr.full_srv_list:

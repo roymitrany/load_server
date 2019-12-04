@@ -21,16 +21,16 @@ class BasicLB(ABC):
 
 class RandomLB(BasicLB):
     def pick_server(self)->Server:
-        server_index = random.randint(0, len(self.srv_manager.available_servers_list)-1)
-        return self.srv_manager.available_servers_list[server_index]
+        server_index = random.randint(0, len(self.srv_manager.available_srv_list) - 1)
+        return self.srv_manager.available_srv_list[server_index]
 
 class RoundRobinLB(BasicLB):
     curr_srv:int=0
     def pick_server(self)->Server:
         self.curr_srv += 1
-        if self.curr_srv>=len(self.srv_manager.available_servers_list):
+        if self.curr_srv>=len(self.srv_manager.available_srv_list):
             self.curr_srv=0
-        return self.srv_manager.available_servers_list[self.curr_srv]
+        return self.srv_manager.available_srv_list[self.curr_srv]
 
 class JsqLB(BasicLB):
     '''
@@ -39,7 +39,7 @@ class JsqLB(BasicLB):
     def pick_server(self)->Server:
         min_length:int = 9999
         curr_srv: Server
-        for server in self.srv_manager.available_servers_list:
+        for server in self.srv_manager.available_srv_list:
             num = server.current_running_tasks
             print ("Queue length for server %s is %d" %(server.srv_port, num))
             if num<min_length:
