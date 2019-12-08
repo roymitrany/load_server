@@ -1,15 +1,16 @@
 import subprocess
 import threading
 from time import sleep, time
-from abc import ABC, abstractmethod
 import re
 from typing import List
 
-from load_client.global_vars import full_srv_ip_addr_list, full_srv_port_list, server_startup_time, task_limit, \
-    initial_num_of_servers, max_server_queue_len
+from load_client.global_vars import full_srv_ip_addr_list, full_srv_port_list, server_startup_time, task_limit
 from load_client.global_vars import get_num_of_completed_tasks, inc_num_of_completed_tasks
 
-
+SERVER_STATE_DOWN = 0
+SERVER_STATE_INIT = 1
+SERVER_STATE_DRAIN = 2
+SERVER_STATE_AVAILABLE = 3
 
 
 def activate_server(srv_mgr, srv_obj):
@@ -21,6 +22,7 @@ def activate_server(srv_mgr, srv_obj):
     '''
     sleep(server_startup_time)
     srv_mgr.available_srv_list.append(srv_obj)
+    srv_obj.running_state = SERVER_STATE_AVAILABLE
 
 def deactivate_server(srv_mgr, srv_obj):
     '''
@@ -32,13 +34,15 @@ def deactivate_server(srv_mgr, srv_obj):
     '''
     while True:
         sleep(1)
-        if srv_obj.current_running_tasks ==0: # No mor erunning tasks, we can take the server out of active list
+        if srv_obj.current_running_tasks ==0: # No more running tasks, we can take the server out of active list
             break
     srv_mgr.active_srv_list.remove(srv_obj)
+    srv_obj.current_running_tasks=SERVER_STATE_DOWN
 
-def process_responses(server):
+def process_responses(server, srv_mgr):
     '''
     The function runs on a separate thread, a thread for each server
+    :param srv_mgr: The server manager
     :param server: The server whose response we are dealing with
     :return:
     '''
@@ -53,13 +57,14 @@ def process_responses(server):
                     output = byte_output.decode("utf-8")
                     #print (output.strip ())
                     if output.find("duration") > -1:
-                        print (output.strip ()) # TODO: save the duration somewhere
+                        print (output.strip ())
                         duration_match = re.search(r'duration\": \"([\d]+)', output)
                         duration = int(duration_match.group(1))
                         server.response_duration_list.append(duration)
                         inc_num_of_completed_tasks()
                         server.process_list.remove(process)
                         server.current_running_tasks -= 1
+                        srv_mgr.scale_in_event.set() # Notify the world that scale in should be triggered. Should be caught by AS
                     if output.find ("current_tasks") > -1: # For statistics only. We will not increment counters here
                         tasks_queue_match = re.search(r'current_tasks\": \"([\d]+)', output)
                         tasks_queue = int(tasks_queue_match.group(1))
@@ -82,11 +87,10 @@ class Server:
         self.srv_port = port
         self.process_list: List[subprocess.Popen] = []
         self.response_thread:threading.Thread = threading.Thread()
+        self.running_state:int = SERVER_STATE_DOWN
 
         # All the statistics below refer to the particular server
-        self.total_request_counter = 0 # The total number of requests sent by the client to this server
         self.current_running_tasks = 0 # The number of requests that their response has not arrived yet (measured by client)
-        self.max_running_tasks = 0 # The largest number of tasks that the server had to deal with (measured by client)
         self.response_duration_list: List[int] = [] # The time measured by server to complete the task, including time waiting in queue
         self.response_tasks_queue_list: List[int] = [] # The number of tasks that the server documented (including current task)
         self.request_tasks_queue_list: List[int] = [] # The number of tasks that the client documented when a response arrived (exluding current task)
@@ -95,8 +99,11 @@ class Server:
 
 
     def activate(self):
-        pass #Maybe later will actually start a server in AWS
+        self.running_state = SERVER_STATE_INIT
+        #Maybe later will actually start a server in AWS
+
     def deactivate(self):
+        self.running_state = SERVER_STATE_DRAIN
         # In any case we will not stop the server here, because it has to drain first
         pass
 
@@ -105,19 +112,23 @@ class Server:
                                                       stdout=subprocess.PIPE,
                                                       stderr=subprocess.PIPE)
         self.current_running_tasks += 1
-        self.max_running_tasks = max(self.current_running_tasks, self.max_running_tasks)
-        self.total_request_counter += 1
         self.process_list.append (process)
         self.request_tasks_queue_list.append (self.current_running_tasks)
 
 
 class ServerManager:
     cool_down_period = 5.0
+    total_scale_out_counter = 0
+    total_scale_in_counter = 0
+
     def __init__(self, num_of_servers:int):
         self.full_srv_list: List[Server] = [] #TODO: Change list to map, with key = ip_port
         self.active_srv_list: List[Server] = [] # Servers that are active, including non available and draining
         self.available_srv_list: List[Server] = [] # Available servers only. LB should look at this list
         self.last_scale_change = time()
+        self.scale_in_event = threading.Event ()
+        self.scale_out_event = threading.Event ()
+
 
         for i in range(len(full_srv_ip_addr_list)):
 
@@ -131,7 +142,7 @@ class ServerManager:
 
         for server in self.full_srv_list:
             # first start the thread that receives the responses
-            server.response_thread = threading.Thread (target=process_responses, args=(server,))
+            server.response_thread = threading.Thread (target=process_responses, args=(server,self,))
             server.response_thread.start ()
 
         print("waiting for initial servers to start") # TODO: export to a method that will actually wait for the servers
@@ -143,7 +154,8 @@ class ServerManager:
 
     def activate_server(self, srv_index):
         curr_server:Server = self.get_server_obj(srv_index)
-        self.active_srv_list.append(curr_server)
+        self.active_srv_list.append (curr_server)
+        curr_server.activate()
         x = threading.Thread (target=activate_server, args=(self, curr_server))
         x.start ()
 
@@ -154,29 +166,20 @@ class ServerManager:
         x = threading.Thread (target=deactivate_server, args=(self, curr_server))
         x.start ()
 
-    def find_inactive_server (self) -> int:
+    def find_inactive_server (self) -> int: #TODO: return server object instead of server index
         """
 
-        :return: The index in full server list of a server that is not in the active servers list
+        :return: The index in full server list of a server that is down
         If all servers are active, return -1
         """
-        # This double loop works in o(n^2). But since the number of server is ~5, it's not so bad.
-        # If we want to implement with many servers, we will have to change all the server lists to dictionaries
-        my_server:int = -1
-        for i in range(len(self.full_srv_list)):
-            my_server = self.full_srv_list[i].srv_index
-            # Check if the server is in active list. If not, return i as the available server
-            for j in range(len(self.active_srv_list)):
-                if self.active_srv_list[j].srv_index == my_server: # server i is in active list
-                    my_server = -1
-                    break
-
-            # If the server was not found in active list, return its index
-            if my_server >=0:
-                return i # A little bit tricky, but probably i=my_server because in full servers list the index matches
-
-        # We reach here only if all servers are active
-        return my_server # should be -1
+        inactive_server = -1
+        count = 0
+        for server in self.full_srv_list:
+            if server.running_state == SERVER_STATE_DOWN:
+                inactive_server =  count
+                return inactive_server
+            count += 1
+        return inactive_server
 
     def scale_out(self):
 
@@ -184,11 +187,6 @@ class ServerManager:
         if time() - self.cool_down_period < self.last_scale_change:
             return
         self.last_scale_change = time()"""
-        # If number of active servers is bigger than the number of available servers, probably we already started
-        # a new server, so do not start another one
-        if len(self.active_srv_list)>len(self.available_srv_list):
-            return
-        print ("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++ SCALE OUTTTTTTTTTTTTTT")
         # Look for an available server and activate it. Available server is in full list but not in active list.
         # We can pick the first one we find, it doesn't matter
         server_index = self.find_inactive_server ()
@@ -196,7 +194,9 @@ class ServerManager:
             return
 
         # Activate the available server
-        self.activate_server (server_index)
+        print ("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++ SCALE OUTTTTTTTTTTTTTT")
+        self.total_scale_out_counter += 1 # increment the counter only when we are sure that a new server will start
+        self.activate_server (server_index) # TODO: change from index to server object
 
     def scale_in(self, server_index=-1):
 
@@ -209,11 +209,10 @@ class ServerManager:
         if time() - self.cool_down_period < self.last_scale_change:
             return
         self.last_scale_change = time()
-        print ("--------------------------------------------------------- SCALE INNNNNNNNNNNNNNNN")
 
         # Do not delete the last server
-        if len (self.available_srv_list) < 2:
-            return
+        #if len (self.available_srv_list) < 2:
+        #    return
 
         if server_index < 0:
             # Server index not specified. Remove the one with fewest tasks
@@ -222,8 +221,13 @@ class ServerManager:
                 if server.current_running_tasks < shortest_queue:
                     server_index = server.srv_index
 
-        # Deactivate the specific server
-        self.deactivate_server (server_index)
+        # Deactivate the specific server (if not yet deactivated)
+        if self.full_srv_list[server_index].running_state == SERVER_STATE_AVAILABLE:
+            self.deactivate_server (server_index)
+            # increment the counter only when we are sure that we are terminating the server
+            print ("--------------------------------------------------------- SCALE INNNNNNNNNNNNNNNN")
+            self.total_scale_in_counter += 1
+
 
 
 

@@ -48,7 +48,7 @@ full_srv_port_list = [5000, 5001, 5002, 5003, 5004]
 server_startup_time = 1
 
 # Average requests per second
-average_rate = 3.0
+average_rate = 2.0
 
 #The server's timeout (in seconds)
 server_timeout = 60
@@ -58,8 +58,17 @@ server_timeout = 60
 max_server_queue_len = 5
 
 # the number of tasks to be completed before we stop the test
-task_limit = 100
+task_limit = 500
 
 # Interval in seconds between statistics data collection
 data_collection_interval = 1
 
+############################# Reward Parameters ###############################
+# Penalties get negative values. Reward get positive values. This way we can treat everything as a reward
+# and let the global definition take the decision what is a reward and what is a penalty
+reward_scale_in = -1000
+reward_scale_out = -1000
+reward_use_per_second = -1
+reward_response = 1000
+reward_delay_per_ms = -0.1
+reward_reject = 3000

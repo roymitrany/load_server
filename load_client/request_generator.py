@@ -1,6 +1,6 @@
 import threading
 
-from load_client.auto_scaler import ThresholdAS
+from load_client.auto_scaler import ThresholdAS, BellmanAS
 from load_client.data_collector import DataCollectionManager, collect_data
 from load_client.global_vars import initial_num_of_servers, task_limit, average_rate, max_server_queue_len, \
     avg_load_level, set_simulation_finished
@@ -11,6 +11,7 @@ from time import sleep
 
 
 from load_client.load_balancers import RandomLB, JsqLB
+from load_client.pie_file_data_parser import PieDataParser
 from load_client.servers_management import ServerManager, Server
 from load_client.reward_calculator import CostCalculator
 
@@ -29,16 +30,48 @@ value in its special function.
 srv_mgr:ServerManager = ServerManager(initial_num_of_servers)
 lb_obj = JsqLB (srv_mgr)
 #lb_obj = RandomLB (srv_mgr)
-as_obj = ThresholdAS(srv_mgr)
-
+#as_obj = ThresholdAS(srv_mgr)
+pie_parser = PieDataParser("pie_file")
+as_obj = BellmanAS(srv_mgr, pie_parser)
 data_collector = DataCollectionManager(srv_mgr)
 
-value_func_obj:CostCalculator = CostCalculator()
+cost_calc_obj:CostCalculator = CostCalculator(srv_mgr)
+
+def scale_out_trigger(mgr:ServerManager):
+    '''
+    A separate thread that waits for a scale out event to arrive from the server manager, upon request launch
+    :param mgr: servers manager singleton object
+    :return:
+    '''
+    while True:
+        mgr.scale_out_event.wait(timeout=10)
+        as_obj.trigger_scale_out()
+        print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+        mgr.scale_out_event.clear()
+        if get_num_of_completed_tasks() >=task_limit: # This will work only if wait event has timeout
+            print ("Scale out thread is exiting")
+            break
+
+def scale_in_trigger(mgr:ServerManager):
+    '''
+    A separate thread that waits for a scale in event to arrive from the server manager, upon response arrival
+    :param mgr: servers manager singleton object
+    :return:
+    '''
+    while True:
+        mgr.scale_in_event.wait(timeout=10)
+        as_obj.trigger_scale_in()
+        mgr.scale_in_event.clear()
+        if get_num_of_completed_tasks() >=task_limit:
+            print ("Scale in thread is exiting") # This will work only if wait event has timeout
+            break
 
 
 def generate_request():
     global lb_obj, value_func_obj
     server_obj:Server = lb_obj.pick_server ()
+    # We are good with the queue, send the request
+    srv_mgr.scale_out_event.set ()  # Notify the world that scale in should be triggered. Should be caught by AS
     if server_obj.current_running_tasks>=max_server_queue_len:
 
         # The queue in the server side is full. Reject the request
@@ -47,9 +80,7 @@ def generate_request():
         print("============== REJECT!!!!!!!!!! " + str (get_num_of_completed_tasks()))
         return
 
-    # We are good with the queue, send the request
     server_obj.start_req(avg_load_level)
-    as_obj.trigger_scale_in_out ()  # Consider scale out
 
     print ("started  task ", get_tasks_global_index())
     inc_tasks_global_index()
@@ -57,6 +88,10 @@ def generate_request():
 
 data_collection_thread = threading.Thread (target=collect_data, args=(data_collector,))
 data_collection_thread.start ()
+x = threading.Thread (target=scale_out_trigger, args=(srv_mgr,))
+x.start ()
+y = threading.Thread (target=scale_in_trigger, args=(srv_mgr,))
+y.start ()
 
 # Loop for generating requests
 for i in range (task_limit):
@@ -75,13 +110,10 @@ data_collection_thread.join()
 
 # print totals
 print ("==================total started tasks: " + str(get_tasks_global_index()))
-print ("==================Number of rejects: " + str(value_func_obj.rejections))
+print ("==================Number of rejects: " + str(cost_calc_obj.rejections))
 print ("==========  requests per server ===========")
 for server in srv_mgr.full_srv_list:
-    print ("server %s sent %d requests" % (server.srv_port, server.total_request_counter))
-
-for server in srv_mgr.full_srv_list:
-    print ("server %s max pending requests: %d" % (server.srv_port, server.max_running_tasks))
+    print ("server %s sent %d requests" % (server.srv_port, len(server.response_duration_list)))
 
 for server in srv_mgr.full_srv_list:
     print ("server %s duration: " % server.srv_port, end=" ")
@@ -92,5 +124,7 @@ for server in srv_mgr.full_srv_list:
     for num in server.response_tasks_queue_list:
         print(num, end=" ")
     print("")
+cost_calc_obj.calculate_cost()
+exit(0)
 
 
