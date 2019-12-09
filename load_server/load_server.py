@@ -68,7 +68,7 @@ class LoadLevel(Resource):
         duration_in_millis = int(1000*(end_ts-begin_ts))
         counter += 1
         state['completed_tasks'] = counter
-        state['current_tasks'] = 2
+        state['current_tasks'] = 0
         state['duration'] = str(duration_in_millis)
         return state
 
@@ -93,7 +93,7 @@ class QueueLoad(Resource):
         # Tell how long is the queue
         q_size = 1 #If nothing is running, out task is the only one in the system, so queue size is 1
         if num_of_tasks>0:
-            q_size = tasks_queue.qsize() + 2 # There is something running, so our task will add 1 to the queue
+            q_size = tasks_queue.qsize() + 2 # There is something running, plus our task plus all the waiting tasks to the queue
         tasks_queue.put (task_obj)
         res_event.wait (timeout=60)
         end_ts = time.time ()

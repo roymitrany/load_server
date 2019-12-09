@@ -63,6 +63,7 @@ class CostCalculator:
 
         val = scale_out_cost + scale_in_cost + rejection_cost + response_cost + delay_cost + server_execution_cost
         print ("Total Reward: " , val)
+        print ("reward per response", str(val/(task_limit-self.rejections)))
         print ("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
         return val
 

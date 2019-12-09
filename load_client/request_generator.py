@@ -1,6 +1,6 @@
 import threading
 
-from load_client.auto_scaler import ThresholdAS, BellmanAS
+from load_client.auto_scaler import ThresholdAS, BellmanAS, DumbAS
 from load_client.data_collector import DataCollectionManager, collect_data
 from load_client.global_vars import initial_num_of_servers, task_limit, average_rate, max_server_queue_len, \
     avg_load_level, set_simulation_finished
@@ -10,7 +10,7 @@ import random
 from time import sleep
 
 
-from load_client.load_balancers import RandomLB, JsqLB
+from load_client.load_balancers import RandomLB, JsqLB, BellmanLB
 from load_client.pie_file_data_parser import PieDataParser
 from load_client.servers_management import ServerManager, Server
 from load_client.reward_calculator import CostCalculator
@@ -28,11 +28,13 @@ value in its special function.
 
 # Create the server management singleton object
 srv_mgr:ServerManager = ServerManager(initial_num_of_servers)
+#pie_parser = PieDataParser("pie_file")
+#lb_obj = BellmanLB (srv_mgr, pie_parser)
 lb_obj = JsqLB (srv_mgr)
 #lb_obj = RandomLB (srv_mgr)
 #as_obj = ThresholdAS(srv_mgr)
-pie_parser = PieDataParser("pie_file")
-as_obj = BellmanAS(srv_mgr, pie_parser)
+as_obj = DumbAS()
+#as_obj = BellmanAS(srv_mgr, pie_parser)
 data_collector = DataCollectionManager(srv_mgr)
 
 cost_calc_obj:CostCalculator = CostCalculator(srv_mgr)
@@ -44,9 +46,8 @@ def scale_out_trigger(mgr:ServerManager):
     :return:
     '''
     while True:
-        mgr.scale_out_event.wait(timeout=10)
+        mgr.scale_out_event.wait(timeout=60)
         as_obj.trigger_scale_out()
-        print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
         mgr.scale_out_event.clear()
         if get_num_of_completed_tasks() >=task_limit: # This will work only if wait event has timeout
             print ("Scale out thread is exiting")
@@ -59,7 +60,7 @@ def scale_in_trigger(mgr:ServerManager):
     :return:
     '''
     while True:
-        mgr.scale_in_event.wait(timeout=10)
+        mgr.scale_in_event.wait(timeout=60)
         as_obj.trigger_scale_in()
         mgr.scale_in_event.clear()
         if get_num_of_completed_tasks() >=task_limit:
@@ -68,14 +69,15 @@ def scale_in_trigger(mgr:ServerManager):
 
 
 def generate_request():
-    global lb_obj, value_func_obj
+    global lb_obj, cost_calc_obj
     server_obj:Server = lb_obj.pick_server ()
     # We are good with the queue, send the request
     srv_mgr.scale_out_event.set ()  # Notify the world that scale in should be triggered. Should be caught by AS
-    if server_obj.current_running_tasks>=max_server_queue_len:
+
+    if (server_obj is None) or (server_obj.current_running_tasks >= max_server_queue_len):
 
         # The queue in the server side is full. Reject the request
-        value_func_obj.rejections += 1
+        cost_calc_obj.rejections += 1
         inc_num_of_completed_tasks()
         print("============== REJECT!!!!!!!!!! " + str (get_num_of_completed_tasks()))
         return

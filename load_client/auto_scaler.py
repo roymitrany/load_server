@@ -4,10 +4,12 @@ We will define an abstract class, and then some types of auto scaler, such as hi
 Mark's LB algorithm will be added right here.
 '''
 from abc import ABC, abstractmethod
+from time import time
 from typing import List
 
 from load_client.global_vars import max_server_queue_len
 from load_client.pie_file_data_parser import get_index_for_queue_list, PieDataParser, get_queue_state_index
+from load_client.servers_management import Server, SERVER_STATE_AVAILABLE
 
 
 class BasicAS(ABC):
@@ -24,35 +26,61 @@ class BasicAS(ABC):
     def trigger_scale_out(self):
         pass
 
+class DumbAS(ABC):
+
+    def trigger_scale_in(self):
+        return
+
+    def trigger_scale_out(self):
+        return
+
 
 
 class ThresholdAS(BasicAS):
     high_threshold = 0.8
     low_threshold = 0.4
+    last_scale_change = time ()
 
     def trigger_scale_in(self):
-        self.trigger_scale_in_out() #TODO: Separate scale in from scale out
+        self.trigger_scale_in_out()
 
     def trigger_scale_out(self):
-        self.trigger_scale_in_out() #TODO: Separate scale in from scale out
+        self.trigger_scale_in_out()
 
     def trigger_scale_in_out(self):
+        # check if we should do some scaling work. The code is pretty much the same for both sides, so we better
+        # implement it once and pay the price of one unnecessary if
         overall_possible_tasks = len(self.srv_manager.available_srv_list) * max_server_queue_len
         overall_current_tasks = 0
         # Count the current number of tasks
         for server in self.srv_manager.active_srv_list:
             overall_current_tasks += server.current_running_tasks
 
+        # If number of active servers is smaller than the number of available servers, probably we already stopped
+        # a server, so do not stop another one
+        if len(self.srv_manager.active_srv_list)!=len(self.srv_manager.available_srv_list):
+            print ("Num of active servers: ", self.srv_manager.active_srv_list, "Num of available servers: ", self.srv_manager.available_srv_list)
+            return
+
+        # If to little time passed since last change, do nothing
+        if time() - self.srv_manager.cool_down_period < self.last_scale_change:
+            print ("Too soon to remove another server")
+            return
+
+
+        # Do not delete the last server
+        #if len (self.available_srv_list) < 2:
+        #    return
+
         if overall_current_tasks>self.high_threshold*overall_possible_tasks:
             # If number of active servers is bigger than the number of available servers, probably we already started
             # a new server, so do not start another one
-            if len (self.srv_manager.active_srv_list) > len (self.srv_manager.available_srv_list):
-                return
             self.srv_manager.scale_out()
+            self.last_scale_change = time ()
 
         if overall_current_tasks<self.low_threshold*overall_possible_tasks:
             self.srv_manager.scale_in()
-
+            self.last_scale_change = time ()
 
 class BellmanAS(BasicAS):
 
@@ -60,27 +88,37 @@ class BellmanAS(BasicAS):
         super ().__init__ (mgr)
         self.data_parser:PieDataParser = pie_data_parser
 
+    def print_available_servers(self)->str:
+        ret_str = ''
+        for server in self.srv_manager.full_srv_list:
+            if server.running_state == SERVER_STATE_AVAILABLE:
+                ret_str+='1'
+            else:
+                ret_str+='0'
+        return ret_str
+
+    def print_current_running_tasks(self)->str:
+        ret_str = ''
+        for server in self.srv_manager.full_srv_list:
+            ret_str+=str(server.current_running_tasks)
+        return ret_str
+
     def trigger_scale_in(self):
 
-        print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
         # get index out of servers queue
         index = get_queue_state_index (self.srv_manager)
         op = self.data_parser.scale_in_policy_list[index]
+        print ("Bellman scale in: index is ", index, " op is: ", op, " current available servers: ", \
+               self.print_available_servers (), " current running tasks: ", self.print_current_running_tasks())
         for i in range(len(self.srv_manager.full_srv_list)):
-            print ("in: i is ", i)
-            print ("in: index is ", index)
-            print ("in: ", op)
             if (int(op[i])==1) and (self.srv_manager.full_srv_list[i].current_running_tasks ==0):
-            #if int (op[i]) == 1:
                 self.srv_manager.scale_in(i)
 
     def trigger_scale_out(self):
 
         index = get_queue_state_index (self.srv_manager)
         op = self.data_parser.scale_out_policy_list[index]
-        print ("out: index is ", index)
+        print ("Bellman scale out: index is ", index, " out: ",op)
         print ("out: ",op)
         if op>0:
             self.srv_manager.scale_out()
-
-

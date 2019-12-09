@@ -6,7 +6,8 @@ Mark's LB algorithm will be added right here.
 from abc import ABC, abstractmethod
 import random
 
-from load_client.servers_management import ServerManager, Server
+from load_client.pie_file_data_parser import PieDataParser, get_queue_state_index
+from load_client.servers_management import ServerManager, Server, SERVER_STATE_AVAILABLE
 
 
 class BasicLB(ABC):
@@ -48,3 +49,25 @@ class JsqLB(BasicLB):
                 curr_srv = server
                 print ("Picking server %d with %d tasks" % (server.srv_port, num))
         return curr_srv
+
+class BellmanLB(BasicLB):
+    def __init__(self, mgr, pie_data_parser):
+        super ().__init__ (mgr)
+        self.data_parser:PieDataParser = pie_data_parser
+
+    def pick_server(self)->Server:
+        queue_state_index = get_queue_state_index (self.srv_manager)
+        srv_index = self.data_parser.load_balance_policy_list[queue_state_index]
+
+        # If we need to reject, let's do it now
+        if srv_index == -1:
+            print ("index is ", queue_state_index, " REJECTING BY POLICY")
+            return None
+        server:Server =  self.srv_manager.full_srv_list[srv_index]
+
+        # Check if the server is available
+        if server.running_state!= SERVER_STATE_AVAILABLE:
+            print ("index is ",  queue_state_index, " REJECTING BY SERVER STATE")
+            return None
+
+        return server

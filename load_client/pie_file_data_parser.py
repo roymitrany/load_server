@@ -18,6 +18,7 @@ class PieDataParser:
         # empty string means that no policy assignment for this state. After parsing, should be only for illegal states
         self.scale_in_policy_list: List[str] = [""] * 100000
         self.scale_out_policy_list: List[int] = [0] * 100000  # By default do nothing
+        self.load_balance_policy_list: List[int] = [0] * 100000  # By default do nothing
         self.num_of_servers = 5
         self.queue_length = 5
         self.load_data(filename)
@@ -76,6 +77,10 @@ class PieDataParser:
                 self.scale_out_policy_list[index]=1 # Otherwise will stay 0
             print(index, "->", self.scale_out_policy_list[index])
 
+            srv_index = operation_list[-1]%(self.num_of_servers+1)
+            if srv_index == self.num_of_servers:
+                srv_index = -1
+            self.load_balance_policy_list[index] = srv_index
 
 def get_queue_state_index (mgr:ServerManager)->int:
     # Build index out of servers queue

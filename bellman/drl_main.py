@@ -8,8 +8,8 @@ import bellman.my_dqn as my_dqn
 
 
 gamma = 0.02
-numQ = 3
-mxQ = 3
+numQ = 5
+mxQ = 5
 act_arr = (numQ+1)*2 #+1 for rejection
 act_srv = 2
 in_actions = (act_arr, act_srv)

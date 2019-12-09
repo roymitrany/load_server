@@ -34,7 +34,7 @@ def set_simulation_finished():
 
 
 # The number of servers to start with. The maximal number of servers is implicitely defined by the full list of servers
-initial_num_of_servers = 3
+initial_num_of_servers = 2
 
 ######### From here on, immutable variables that we don't need to wrap with functions
 # The average load that we should set for each task
@@ -48,17 +48,17 @@ full_srv_port_list = [5000, 5001, 5002, 5003, 5004]
 server_startup_time = 1
 
 # Average requests per second
-average_rate = 2.0
+average_rate = 3.6
 
 #The server's timeout (in seconds)
-server_timeout = 60
+server_timeout = 200
 
 # Maximal queue length
 #max_server_queue_len =  int(server_timeout*average_rate/num_of_servers)
 max_server_queue_len = 5
 
 # the number of tasks to be completed before we stop the test
-task_limit = 500
+task_limit = 300
 
 # Interval in seconds between statistics data collection
 data_collection_interval = 1
