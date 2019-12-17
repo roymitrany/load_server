@@ -8,8 +8,8 @@ from time import time
 from typing import List
 
 from load_client.global_vars import max_server_queue_len
-from load_client.pie_file_data_parser import get_index_for_queue_list, PieDataParser, get_queue_state_index
-from load_client.servers_management import Server, SERVER_STATE_AVAILABLE
+from load_client.pie_file_data_parser import  PieDataParser, get_queue_state_index
+from load_client.servers_management import SERVER_STATE_AVAILABLE
 
 
 class BasicAS(ABC):
@@ -26,7 +26,7 @@ class BasicAS(ABC):
     def trigger_scale_out(self):
         pass
 
-class DumbAS(ABC):
+class DumbAS(BasicAS):
 
     def trigger_scale_in(self):
         return

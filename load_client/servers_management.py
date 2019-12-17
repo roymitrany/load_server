@@ -3,9 +3,9 @@ import threading
 from time import sleep, time
 import re
 from typing import List
+from typing import TYPE_CHECKING
 
-from load_client.global_vars import full_srv_ip_addr_list, full_srv_port_list, server_startup_time, task_limit
-from load_client.global_vars import get_num_of_completed_tasks, inc_num_of_completed_tasks
+from load_client.global_vars import full_srv_ip_addr_list, full_srv_port_list
 
 SERVER_STATE_DOWN = 0
 SERVER_STATE_INIT = 1
@@ -20,7 +20,7 @@ def activate_server(srv_mgr, srv_obj):
     :param srv_obj: the current server object to activate
     :return:
     '''
-    sleep(server_startup_time)
+    sleep(srv_mgr.sim_mgr.simulation_params.server_startup_time)
     srv_mgr.available_srv_list.append(srv_obj)
     srv_obj.running_state = SERVER_STATE_AVAILABLE
 
@@ -40,13 +40,14 @@ def deactivate_server(srv_mgr, srv_obj):
     srv_obj.running_state=SERVER_STATE_DOWN
 
 
-def process_responses(server, srv_mgr):
+def process_responses(server, sim_mgr):
     '''
     The function runs on a separate thread, a thread for each server
-    :param srv_mgr: The server manager
+    :param sim_mgr: The simulation manager
     :param server: The server whose response we are dealing with
     :return:
     '''
+    #srv_mgr = sim_mgr.srv_mgr
     while True:
         for process in server.process_list : # TODO: make it flexible, according to tasks_index
             #print (output.strip ())
@@ -59,24 +60,30 @@ def process_responses(server, srv_mgr):
                         duration_match = re.search(r'duration\": \"([\d]+)', output)
                         duration = int(duration_match.group(1))
                         server.response_duration_list.append(duration)
-                        inc_num_of_completed_tasks()
+                        sim_mgr.inc_num_of_completed_tasks()
                         server.process_list.remove(process)
-                        server.current_running_tasks -= 1
-                        srv_mgr.scale_in_event.set() # Notify the world that scale in should be triggered. Should be caught by AS
-                    if output.find ("current_tasks") > -1: # For statistics only. We will not increment counters here
-                        tasks_queue_match = re.search(r'current_tasks\": \"([\d]+)', output)
+                        sim_mgr.as_obj.trigger_scale_in() # Notify the world that scale in should be triggered. Should be caught by AS
+                    if output.find ("queue_size_enqueue") > -1: # For statistics only. We will not increment counters here
+                        tasks_queue_match = re.search(r'queue_size_enqueue\": \"([\d]+)', output)
                         tasks_queue = int(tasks_queue_match.group(1))
                         server.response_tasks_queue_list.append(tasks_queue)
+                    if output.find ("queue_size_task_end") > -1: # For statistics only. We will not increment counters here
+                        tasks_queue_match = re.search(r'queue_size_task_end\": \"([\d]+)', output)
+                        current_running_tasks = int(tasks_queue_match.group(1))
+                        server.current_running_tasks = current_running_tasks
+                    if output.find ("TIMEOUTT") > -1:
+                        # timeout occurred, update counters
+                        print(output)
+                        print ("TTTTTTTTTTTTIIIIIIIIIMMMMMMMMMMEEEEEEEEEOOOOOOOOOOOOUUUUUUUUUUTTTTTTTTTTT")
+                        server.current_running_tasks -= 1
+                        server.process_list.remove (process)
+                        sim_mgr.inc_num_of_completed_tasks ()
 
-
-
-        if get_num_of_completed_tasks() >=task_limit:
-            print ("Overall tasks completed: " + str (get_num_of_completed_tasks()))
-            srv_mgr.scale_out_event.set ()
-            srv_mgr.scale_in_event.set ()
+        if sim_mgr.get_num_of_completed_tasks() >= sim_mgr.simulation_params.num_of_tasks:
+            print ("Overall tasks completed: " + str (sim_mgr.get_num_of_completed_tasks()))
             break
         #print ("Server " + str(server.srv_index) + ": Overall tasks completed: " + str (get_num_of_completed_tasks()))
-        sleep(0.2)
+        sleep(1)
 
 class Server:
     response_duration_list: List[int]
@@ -123,12 +130,11 @@ class ServerManager:
     total_scale_out_counter = 0
     total_scale_in_counter = 0
 
-    def __init__(self, num_of_servers:int):
+    def __init__(self, sim_mgr, num_of_servers:int):
+        self.sim_mgr = sim_mgr
         self.full_srv_list: List[Server] = [] #TODO: Change list to map, with key = ip_port
         self.active_srv_list: List[Server] = [] # Servers that are active, including non available and draining
         self.available_srv_list: List[Server] = [] # Available servers only. LB should look at this list
-        self.scale_in_event = threading.Event ()
-        self.scale_out_event = threading.Event ()
 
 
         for i in range(len(full_srv_ip_addr_list)):
@@ -143,11 +149,11 @@ class ServerManager:
 
         for server in self.full_srv_list:
             # first start the thread that receives the responses
-            server.response_thread = threading.Thread (target=process_responses, args=(server,self,))
+            server.response_thread = threading.Thread (target=process_responses, args=(server,self.sim_mgr,))
             server.response_thread.start ()
 
         print("waiting for initial servers to start") # TODO: export to a method that will actually wait for the servers
-        sleep(server_startup_time)
+        sleep(sim_mgr.simulation_params.server_startup_time)
 
 
     def get_server_obj(self, srv_index):

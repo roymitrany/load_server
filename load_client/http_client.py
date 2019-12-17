@@ -1,8 +1,6 @@
 import requests as req
 import argparse
 
-from load_client.load_balancers import RandomLB
-
 num_of_servers = 3
 
 def send_http_load_request(ip_addr, port=5000,load_level=1, timeout=100):
