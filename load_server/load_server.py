@@ -24,9 +24,14 @@ api = Api(app, version='1.0', title='CPU Loader', description='loading app',
           contact_email='roym@technion.ac.il', contact='Roy Mitrany')
 ns = api.namespace('load', description='CPU Loader')
 
-srv_state = api.model('ServerState', {
+srv_state_concurrent = api.model('ServerState', {
     'completed_tasks': fields.String(required=True, description='Number of completed tasts since start'),
-    'current_tasks': fields.String(required=True, description='Number of tasks that are currently running'),
+    'duration': fields.String(required=False, description='Duration of last task')})
+
+srv_state_queue = api.model('ServerState', {
+    'completed_tasks': fields.String(required=True, description='Number of completed tasts since start'),
+    'queue_size_enqueue': fields.String(required=True, description='Number of tasks in server, when the task arrived, including current task'),
+    'queue_size_task_end': fields.String(required=True, description='Number of tasks in server, when the task ended, excluding current task'),
     'duration': fields.String(required=False, description='Duration of last task')})
 
 def load_cpu(level):
@@ -56,7 +61,7 @@ class LoadLevel(Resource):
     # Trying to define a static variable
     #counter = 0
     @ns.doc('load_cpu')
-    @ns.marshal_with(srv_state)
+    @ns.marshal_with(srv_state_concurrent)
     @ns.response(200, 'Success')
     def get(self, level):
         """Load CPU by level. The load will be about level*2 seconds """
@@ -68,7 +73,6 @@ class LoadLevel(Resource):
         duration_in_millis = int(1000*(end_ts-begin_ts))
         counter += 1
         state['completed_tasks'] = counter
-        state['current_tasks'] = 0
         state['duration'] = str(duration_in_millis)
         return state
 
@@ -81,7 +85,7 @@ class QueueLoad(Resource):
     # Trying to define a static variable
     #counter = 0
     @ns.doc('queue_load_cpu')
-    @ns.marshal_with(srv_state)
+    @ns.marshal_with(srv_state_queue)
     @ns.response(200, 'Success')
     def get(self, level):
         """Insert a new load task to queue """
@@ -91,16 +95,18 @@ class QueueLoad(Resource):
         res_event = threading.Event ()
         task_obj = LoadTask(counter, level, begin_ts, res_event)
         # Tell how long is the queue
-        q_size = 1 #If nothing is running, out task is the only one in the system, so queue size is 1
+        q_size_enqueue = 1 #If nothing is running, out task is the only one in the system, so queue size is 1
         if num_of_tasks>0:
-            q_size = tasks_queue.qsize() + 2 # There is something running, plus our task plus all the waiting tasks to the queue
+            q_size_enqueue = tasks_queue.qsize() + 2 # There is something running, plus our task plus all the waiting tasks to the queue
         tasks_queue.put (task_obj)
         res_event.wait (timeout=60)
         end_ts = time.time ()
         duration_in_millis = int(1000*(end_ts-begin_ts))
         counter += 1
+        queue_size_task_end = tasks_queue.qsize() + num_of_tasks #This value shows the queue size after the task is completed, excluding current task
         state['completed_tasks'] = counter
-        state['current_tasks'] = q_size 
+        state['queue_size_enqueue'] = q_size_enqueue
+        state['queue_size_task_end'] = queue_size_task_end
         state['duration'] = str(duration_in_millis)
         return state
 
@@ -108,22 +114,22 @@ class QueueLoad(Resource):
 @ns.route('/ping')
 class Ping(Resource):
     @ns.doc('test_liveness')
-    @ns.marshal_with(srv_state)
-    @ns.response(200, 'Success', srv_state)
+    @ns.marshal_with(srv_state_concurrent)
+    @ns.response(200, 'Success', srv_state_concurrent)
     def get (self):
         global counter
-        state = {'completed_tasks': counter, 'current_tasks': num_of_tasks}
+        state = {'completed_tasks': counter}
         return state
 
 @ns.route('/reset_tasks_counter')
 class Ping(Resource):
     @ns.doc('reset the completed tasks counter. More convenient that restarting the server')
-    @ns.marshal_with(srv_state)
-    @ns.response(200, 'Success', srv_state)
+    @ns.marshal_with(srv_state_concurrent)
+    @ns.response(200, 'Success', srv_state_concurrent)
     def get (self):
         global counter
         counter = 0
-        state = {'completed_tasks': counter, 'current_tasks': num_of_tasks}
+        state = {'completed_tasks': counter}
         return state
 
 if __name__ == '__main__':
