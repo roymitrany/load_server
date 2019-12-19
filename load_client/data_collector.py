@@ -1,11 +1,11 @@
 import threading
 import time
 import os
-from pathlib import Path
 from typing import List
 from abc import ABC, abstractmethod
 import matplotlib.pyplot as plt
 import matplotlib
+from typing import TYPE_CHECKING
 
 from load_client.reward_calculator import CostCalculator
 
@@ -19,7 +19,7 @@ from load_client.servers_management import ServerManager
 class DataCollector(ABC):
 
     def __init__(self, sim_mgr, res_path):
-        self.sim_mgr = sim_mgr
+        self.sim_mgr:'SimExecManager' = sim_mgr
         self.srv_mgr: ServerManager = sim_mgr.srv_mgr
         self.res_path:str = res_path
         self.x_list: List[int] = []
@@ -65,6 +65,9 @@ class ResponseDurationData(DataCollector):
             self.y_list.append([]*0)
 
     def save_ongoing_data(self):
+        return
+
+    def save_summary_data(self):
         """
         The response duration is event driven metric, and is collected by the server.
         Therefore we have to call this method only once, when the simulation is completed, and take the data from
@@ -95,9 +98,6 @@ class ResponseDurationData(DataCollector):
                 # rely on y list created earlier
                 line = line + "," + str(self.y_list[i][count]) # append a value to the csv line
             self.f.write(line + "\n") # write the csv line to the file
-
-    def save_summary_data(self):
-        return
 
     def print_data(self):
         #print ("X axis: " + str(self.x_list))
@@ -156,11 +156,17 @@ class SummaryData(DataCollector):
             self.response_counter += len(server.response_duration_list)
             self.total_delay += sum(server.response_duration_list)
 
-
+        param_obj = self.sim_mgr.simulation_params
         self.f = open (self.filename, "a")
         # Write the test parameters to the file
         param_str = "test_parameters:\n"
-        #param_str += "load_balancer_class" + lb_obj.__class__.__name__ + "\n"
+        param_str += "load_balancer: " + str(self.sim_mgr.lb_obj.__class__.__name__) + "\n"
+        param_str += "auto scaler: " + str(self.sim_mgr.as_obj.__class__.__name__) + "\n"
+        param_str += "num_of_tasks: " + str(param_obj.num_of_tasks) + "\n"
+        param_str += "avg_load_level: " + str(param_obj.avg_load_level) + "\n"
+        param_str += "initial_num_of_servers: " + str(param_obj.initial_num_of_servers) + "\n"
+        param_str += "average_rate: " + str(param_obj.average_rate) + "\n"
+        param_str += "server_startup_time: " + str(param_obj.server_startup_time) + "\n"
         self.f.write (param_str + "\n")
 
         # Write the result summary
@@ -204,7 +210,8 @@ class SummaryData(DataCollector):
         print ("Service earnings: " , self.cost_calc_obj.response_cost)
 
         print ("Total Reward: " , self.cost_calc_obj.total_reward)
-        print ("reward per response", str(self.cost_calc_obj.total_reward/(self.sim_mgr.get_num_of_completed_tasks()-self.sim_mgr.get_num_of_rejections())))
+        if self.sim_mgr.get_num_of_completed_tasks()!=self.sim_mgr.get_num_of_rejections():
+            print ("reward per response", str(self.cost_calc_obj.total_reward/(self.sim_mgr.get_num_of_completed_tasks()-self.sim_mgr.get_num_of_rejections())))
         print ("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
     def plot_data(self):
@@ -213,8 +220,8 @@ class SummaryData(DataCollector):
 
 class QueueLenData(DataCollector):
     """
-    This data collector counts the enqueueing queue length for each request that arrived to the server.
-    It collects the data for each response event, so it is event driven and not time driven
+    This data collector counts the enqueueing queue length every interval of time. It makes more sense to measure
+    by time, because is servers scale in and out, graphs that are shown by event are doing to be meaningless
     """
     def __init__(self, sim_mgr, res_path):
         super ().__init__ (sim_mgr, res_path)
@@ -226,12 +233,12 @@ class QueueLenData(DataCollector):
         for i in range(len(self.srv_mgr.full_srv_list)):
             self.y_list.append([]*0)
 
-    def save_ongoing_data(self):
+    def save_summary_data(self):
         return
 
-    def save_summary_data(self):
+    def save_ongoing_data (self):
         """
-        The queue len data is event metric driven, and therefore called periodically from the "collect_data": thread
+        The queue len data is periodic driven, and therefore called periodically from the "collect_data": thread
         :return:
         """
         self.counter += 1
@@ -240,7 +247,7 @@ class QueueLenData(DataCollector):
         for i in range (0, len (self.srv_mgr.full_srv_list)):
             server = self.srv_mgr.full_srv_list[i]
             line = line + "," + str(server.current_running_tasks) # append a value to the csv line
-            self.y_list[i].append(server.current_running_tasks) # append the queue length calue to the server's array
+            self.y_list[i].append(server.current_running_tasks) # append the queue length value to the server's array
         self.f.write(line + "\n") # write the csv line to the file
 
     def print_data(self):
@@ -268,8 +275,45 @@ class QueueLenData(DataCollector):
         plt.legend (loc='upper right')
         fig.savefig(os.path.join(self.res_path, "srv_queue.png"))
 
-        # TODO: create another data collector for number of active servers per second
-        #self.num_of_servers_list.append(len(self.sim_mgr.srv_mgr.active_srv_list))
+
+class NumOfServersData(DataCollector):
+    """
+    This data collector counts the the number of active servers every interval of time.
+    """
+    def __init__(self, sim_mgr, res_path):
+        super ().__init__ (sim_mgr, res_path)
+        filename = os.path.join(self.res_path, "num_of_servers.txt")
+        self.f = open (filename, "a")
+        self.y_list.append ([] * 0) # This graph has only one line, will be filled in y_list[0]
+
+    def save_summary_data(self):
+        return
+
+    def save_ongoing_data (self):
+        """
+        The num of servers counter data is periodic driven, and therefore called periodically from the "collect_data": thread
+        :return:
+        """
+        self.counter += 1
+        self.x_list.append(self.counter*data_collection_interval) # add the x axis (currently counter) element
+        line = str(self.counter) # start a line string for the csv record
+        line = line + "," + str(len(self.srv_mgr.active_srv_list))
+        self.y_list[0].append(len(self.srv_mgr.active_srv_list))
+        self.f.write(line + "\n") # write the csv line to the file
+
+    def print_data(self):
+        #print ("X axis: " + str(self.x_list))
+        print ("num of active servers each sample interval", self.y_list[0])
+
+    def plot_data(self):
+        fig, ax = plt.subplots (figsize=(30,15))
+
+        ax.set (xlabel='Time(seconds)', ylabel='Active Servers',
+                title='Number of Active Servers by Time')
+        ax.grid ()
+        ax.plot (self.x_list, self.y_list[0])
+
+        fig.savefig(os.path.join(self.res_path, "active_srv.png"))
 
 class DataCollectionManager:
     def __init__(self, sim_mgr):
@@ -284,11 +328,12 @@ class DataCollectionManager:
         queue_len_data = QueueLenData(sim_mgr, self.res_path)
         response_duration_data = ResponseDurationData(sim_mgr, self.res_path)
         self.summary_data = SummaryData(sim_mgr, self.res_path, self.cost_calc_obj)
+        num_of_servers_data = NumOfServersData(sim_mgr, self.res_path)
 
         data_collection_thread = threading.Thread (target=collect_data, args=(self,sim_mgr,))
         data_collection_thread.start ()
 
-        self.data_collection_list:List[DataCollector] = [queue_len_data, response_duration_data, self.summary_data]
+        self.data_collection_list:List[DataCollector] = [queue_len_data, response_duration_data, self.summary_data, num_of_servers_data]
 
 
     def save_ongoing_data(self):

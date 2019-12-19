@@ -5,7 +5,6 @@ Mark's LB algorithm will be added right here.
 '''
 from abc import ABC, abstractmethod
 from time import time
-from typing import List
 
 from load_client.global_vars import max_server_queue_len
 from load_client.pie_file_data_parser import  PieDataParser, get_queue_state_index
@@ -59,7 +58,7 @@ class ThresholdAS(BasicAS):
         # If number of active servers is smaller than the number of available servers, probably we already stopped
         # a server, so do not stop another one
         if len(self.srv_manager.active_srv_list)!=len(self.srv_manager.available_srv_list):
-            print ("Num of active servers: ", self.srv_manager.active_srv_list, "Num of available servers: ", self.srv_manager.available_srv_list)
+            print ("Num of active servers: ", len(self.srv_manager.active_srv_list), "Num of available servers: ", len(self.srv_manager.available_srv_list))
             return
 
         # If to little time passed since last change, do nothing
@@ -84,9 +83,9 @@ class ThresholdAS(BasicAS):
 
 class BellmanAS(BasicAS):
 
-    def __init__(self, mgr, pie_data_parser):
+    def __init__(self, mgr):
         super ().__init__ (mgr)
-        self.data_parser:PieDataParser = pie_data_parser
+        self.data_parser:PieDataParser = PieDataParser("pie.txt")
 
     def print_available_servers(self)->str:
         ret_str = ''
@@ -122,3 +121,11 @@ class BellmanAS(BasicAS):
         print ("out: ",op)
         if op>0:
             self.srv_manager.scale_out()
+
+def create_as_obj(as_type, mgr)->BasicAS: #TODO Throw exception for type mismatch
+    if as_type == "dumb":
+        return DumbAS(mgr)
+    if as_type == "threshold":
+        return ThresholdAS(mgr)
+    if as_type == "bellman":
+        return BellmanAS(mgr)

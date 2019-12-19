@@ -12,6 +12,8 @@ def get_index_for_queue_list(queue_list:List[int])->int:
     return index
 
 class PieDataParser:
+    queue_length = 5
+    num_of_servers = 5
     def __init__(self, filename):
         # The scale in policy setermines the operation that we should do for each server.
         # the easiest way is to keep it as a string of "0"s and "1"s
@@ -19,8 +21,6 @@ class PieDataParser:
         self.scale_in_policy_list: List[str] = [""] * 100000
         self.scale_out_policy_list: List[int] = [0] * 100000  # By default do nothing
         self.load_balance_policy_list: List[int] = [0] * 100000  # By default do nothing
-        self.num_of_servers = 5
-        self.queue_length = 5
         self.load_data(filename)
         print('done loading AS data')
 
@@ -91,7 +91,8 @@ def get_queue_state_index (mgr:ServerManager)->int:
         if server.running_state == SERVER_STATE_INIT:
             queue_state_list.append (1)
         if server.running_state == SERVER_STATE_AVAILABLE:
-            queue_state_list.append (server.current_running_tasks+2)
+            num_of_tasks = min(server.current_running_tasks, PieDataParser.queue_length)
+            queue_state_list.append (num_of_tasks+2)
 
     index = get_index_for_queue_list(queue_state_list)
     return index

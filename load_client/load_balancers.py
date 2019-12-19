@@ -51,9 +51,9 @@ class JsqLB(BasicLB):
         return curr_srv
 
 class BellmanLB(BasicLB):
-    def __init__(self, mgr, pie_data_parser):
+    def __init__(self, mgr):
         super ().__init__ (mgr)
-        self.data_parser:PieDataParser = pie_data_parser
+        self.data_parser:PieDataParser = PieDataParser("pie.txt")
 
     def pick_server(self)->Server:
         queue_state_index = get_queue_state_index (self.srv_manager)
@@ -71,3 +71,13 @@ class BellmanLB(BasicLB):
             return None
 
         return server
+
+def create_lb_obj(lb_type, mgr)->BasicLB: #TODO Throw exception for type mismatch
+    if lb_type == "random":
+        return RandomLB(mgr)
+    if lb_type == "round_robin":
+        return RoundRobinLB(mgr)
+    if lb_type == "jsq":
+        return JsqLB(mgr)
+    if lb_type == "bellman":
+        return BellmanLB(mgr)

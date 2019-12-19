@@ -71,13 +71,13 @@ def process_responses(server, sim_mgr):
                         tasks_queue_match = re.search(r'queue_size_task_end\": \"([\d]+)', output)
                         current_running_tasks = int(tasks_queue_match.group(1))
                         server.current_running_tasks = current_running_tasks
-                    if output.find ("TIMEOUTT") > -1:
+                    if (output.find ("Timeoutttt") > -1)or(output.find ("Errorrrr") > -1):
                         # timeout occurred, update counters
-                        print(output)
-                        print ("TTTTTTTTTTTTIIIIIIIIIMMMMMMMMMMEEEEEEEEEOOOOOOOOOOOOUUUUUUUUUUTTTTTTTTTTT")
+                        print("INCOMPLETE TASK!!!", output)
                         server.current_running_tasks -= 1
                         server.process_list.remove (process)
                         sim_mgr.inc_num_of_completed_tasks ()
+                        sim_mgr.inc_num_of_rejections ()
 
         if sim_mgr.get_num_of_completed_tasks() >= sim_mgr.simulation_params.num_of_tasks:
             print ("Overall tasks completed: " + str (sim_mgr.get_num_of_completed_tasks()))

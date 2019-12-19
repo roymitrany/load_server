@@ -27,7 +27,7 @@ class RequestGenerator:
     def generate_request(self, sim_mgr: 'SimExecManager'):
         server_obj:Server = sim_mgr.lb_obj.pick_server ()
         # We are good with the queue, send the request
-        sim_mgr.as_obj.trigger_scale_in()
+        sim_mgr.as_obj.trigger_scale_out()
 
 
         if (server_obj is None) or (server_obj.current_running_tasks >= max_server_queue_len):
