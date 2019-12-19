@@ -12,7 +12,8 @@ from load_client.reward_calculator import CostCalculator
 matplotlib.use('Agg')
 plt.rc('font', size=16)
 
-from load_client.global_vars import  data_collection_interval
+from load_client.global_vars import data_collection_interval, response_duration_filename, exec_summary_filename, \
+    queues_filename, num_of_servers_filename, calculated_cost_filename
 from load_client.servers_management import ServerManager
 
 
@@ -56,8 +57,8 @@ class DataCollector(ABC):
 class ResponseDurationData(DataCollector):
     def __init__(self, sim_mgr, res_path):
         super ().__init__ (sim_mgr, res_path)
-        filename = os.path.join(self.res_path, "response_duration.txt")
-        self.f = open (filename, "a")
+        self.filename = os.path.join(self.res_path, response_duration_filename)
+        self.f = open (self.filename, "a")
 
 
         # Create an empty list of each server
@@ -90,13 +91,11 @@ class ResponseDurationData(DataCollector):
 
         self.x_list = range(1, max_len+1) # Build the x axis according to max_len
 
-        # Create the CSV file
-        for count in range(max_len):
-            line = str(count) # start a line string for the csv record
-            for i in range (0, len (self.srv_mgr.full_srv_list)):
-
-                # rely on y list created earlier
-                line = line + "," + str(self.y_list[i][count]) # append a value to the csv line
+        # Create the results file
+        for server in self.srv_mgr.full_srv_list:
+            line = str(server.srv_port) + ":"
+            for res in server.response_duration_list:
+                line+= str(res) + " "
             self.f.write(line + "\n") # write the csv line to the file
 
     def print_data(self):
@@ -130,7 +129,7 @@ class SummaryData(DataCollector):
 
     def __init__(self, sim_mgr, res_path, cost_calc_obj):
         super ().__init__ (sim_mgr, res_path)
-        self.filename = os.path.join (res_path, "exec_summary.txt")
+        self.filename = os.path.join (res_path, exec_summary_filename)
         self.cost_calc_obj = cost_calc_obj
         self.response_counter = 0
         self.total_delay = 0
@@ -171,11 +170,11 @@ class SummaryData(DataCollector):
 
         # Write the result summary
         res_str = "Test Results: \n"
-        res_str += "Scale out events: " + str(self.srv_mgr.total_scale_out_counter) +  "\n"
-        res_str += "Scale in events: " + str(self.srv_mgr.total_scale_in_counter) +  "\n"
-        res_str += "Rejections: " + str(self.sim_mgr.get_num_of_rejections()) +  "\n"
-        res_str += "Total server responses: " + str(self.response_counter) +  "\n"
-        res_str += "Sum of all server processing time: " + str(self.total_delay) +  "\n"
+        res_str += "scale_outs: " + str(self.srv_mgr.total_scale_out_counter) +  "\n"
+        res_str += "scale_ins: " + str(self.srv_mgr.total_scale_in_counter) +  "\n"
+        res_str += "rejections: " + str(self.sim_mgr.get_num_of_rejections()) +  "\n"
+        res_str += "total_server_responses: " + str(self.response_counter) +  "\n"
+        res_str += "sum_of_all_server_processing_time: " + str(self.total_delay) +  "\n"
         self.f.write(res_str + "\n")
 
         self.f.close()
@@ -225,7 +224,7 @@ class QueueLenData(DataCollector):
     """
     def __init__(self, sim_mgr, res_path):
         super ().__init__ (sim_mgr, res_path)
-        filename = os.path.join(self.res_path, "queues.txt")
+        filename = os.path.join(self.res_path, queues_filename)
         self.f = open (filename, "a")
 
 
@@ -282,8 +281,8 @@ class NumOfServersData(DataCollector):
     """
     def __init__(self, sim_mgr, res_path):
         super ().__init__ (sim_mgr, res_path)
-        filename = os.path.join(self.res_path, "num_of_servers.txt")
-        self.f = open (filename, "a")
+        self.filename = os.path.join(self.res_path, num_of_servers_filename)
+        self.f = open (self.filename, "a")
         self.y_list.append ([] * 0) # This graph has only one line, will be filled in y_list[0]
 
     def save_summary_data(self):
@@ -318,22 +317,23 @@ class NumOfServersData(DataCollector):
 class DataCollectionManager:
     def __init__(self, sim_mgr):
         ts = time.time()
-        self.cost_calc_obj = CostCalculator(self, sim_mgr)
 
         # Create folder for all the results
         self.res_path = os.path.join(os.getcwd(), "results", str(ts))
         os.makedirs(self.res_path)
+        self.cost_calc_obj = CostCalculator(self.res_path)
 
         # Create a class of queue length data
         queue_len_data = QueueLenData(sim_mgr, self.res_path)
-        response_duration_data = ResponseDurationData(sim_mgr, self.res_path)
+        self.response_duration_data = ResponseDurationData(sim_mgr, self.res_path)
         self.summary_data = SummaryData(sim_mgr, self.res_path, self.cost_calc_obj)
-        num_of_servers_data = NumOfServersData(sim_mgr, self.res_path)
+        self.num_of_servers_data = NumOfServersData(sim_mgr, self.res_path)
 
         data_collection_thread = threading.Thread (target=collect_data, args=(self,sim_mgr,))
         data_collection_thread.start ()
 
-        self.data_collection_list:List[DataCollector] = [queue_len_data, response_duration_data, self.summary_data, num_of_servers_data]
+        self.data_collection_list:List[DataCollector] = [queue_len_data, self.response_duration_data,
+                                                         self.summary_data, self.num_of_servers_data]
 
 
     def save_ongoing_data(self):
@@ -341,7 +341,6 @@ class DataCollectionManager:
             data_collector.save_ongoing_data()
 
     def simulation_finished(self):
-        self.cost_calc_obj.calculate_cost()
 
         # Generate Summary data
         for data_collector in self.data_collection_list:
@@ -351,9 +350,7 @@ class DataCollectionManager:
         for data_collector in self.data_collection_list:
             data_collector.simulation_finished()
 
-        self.cost_calc_obj.save_calculated_cost(self.summary_data.filename)
-
-
+        self.cost_calc_obj.calculate_cost()
 
 def collect_data(data_collector, sim_mgr):
     while True:

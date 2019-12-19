@@ -55,9 +55,27 @@ class BellmanLB(BasicLB):
         super ().__init__ (mgr)
         self.data_parser:PieDataParser = PieDataParser("pie.txt")
 
+    def print_available_servers(self)->str:
+        ret_str = ''
+        for server in self.srv_manager.full_srv_list:
+            if server.running_state == SERVER_STATE_AVAILABLE:
+                ret_str+='1'
+            else:
+                ret_str+='0'
+        return ret_str
+
+    def print_current_running_tasks(self)->str:
+        ret_str = ''
+        for server in self.srv_manager.full_srv_list:
+            ret_str+=str(server.current_running_tasks)
+        return ret_str
+
     def pick_server(self)->Server:
         queue_state_index = get_queue_state_index (self.srv_manager)
         srv_index = self.data_parser.load_balance_policy_list[queue_state_index]
+
+        print ("Bellman LB: index is ", queue_state_index, " picked server is: ", srv_index, " current available servers: ",
+               self.print_available_servers (), " current running tasks: ", self.print_current_running_tasks ())
 
         # If we need to reject, let's do it now
         if srv_index == -1:
@@ -67,6 +85,7 @@ class BellmanLB(BasicLB):
 
         # Check if the server is available
         if server.running_state!= SERVER_STATE_AVAILABLE:
+            print("picked server: ", str(srv_index), ". Srever running state: ", str(server.running_state))
             print ("index is ",  queue_state_index, " REJECTING BY SERVER STATE")
             return None
 

@@ -6,7 +6,7 @@ Mark's LB algorithm will be added right here.
 from abc import ABC, abstractmethod
 from time import time
 
-from load_client.global_vars import max_server_queue_len
+from load_client.global_vars import max_server_queue_len, as_high_threshold, as_low_threshold
 from load_client.pie_file_data_parser import  PieDataParser, get_queue_state_index
 from load_client.servers_management import SERVER_STATE_AVAILABLE
 
@@ -36,8 +36,6 @@ class DumbAS(BasicAS):
 
 
 class ThresholdAS(BasicAS):
-    high_threshold = 0.8
-    low_threshold = 0.4
     last_scale_change = time ()
 
     def trigger_scale_in(self):
@@ -71,13 +69,13 @@ class ThresholdAS(BasicAS):
         #if len (self.available_srv_list) < 2:
         #    return
 
-        if overall_current_tasks>self.high_threshold*overall_possible_tasks:
+        if overall_current_tasks>as_high_threshold*overall_possible_tasks:
             # If number of active servers is bigger than the number of available servers, probably we already started
             # a new server, so do not start another one
             self.srv_manager.scale_out()
             self.last_scale_change = time ()
 
-        if overall_current_tasks<self.low_threshold*overall_possible_tasks:
+        if overall_current_tasks<as_low_threshold*overall_possible_tasks:
             self.srv_manager.scale_in()
             self.last_scale_change = time ()
 

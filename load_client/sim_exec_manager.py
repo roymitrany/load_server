@@ -103,12 +103,12 @@ class SimExecManager:
 
 #lb_type: random round_robin jsq bellman
 #as_type: dumb threshold bellman
-sim_params = SimulationParams(num_of_tasks=1000, avg_load_level=7, initial_num_of_servers=5, average_rate=3.6, server_startup_time=2)
-#s=SimExecManager(sim_params, lb_type="jsq", as_type="threshold")
-#s.run_simulation()
+sim_params = SimulationParams(num_of_tasks=10000, avg_load_level=7, initial_num_of_servers=5, average_rate=3.6, server_startup_time=2)
+s=SimExecManager(sim_params, lb_type="jsq", as_type="threshold")
+s.run_simulation()
 
-#s=SimExecManager(sim_params, lb_type="bellman", as_type="bellman")
-#s.run_simulation()
+s=SimExecManager(sim_params, lb_type="bellman", as_type="bellman")
+s.run_simulation()
 
 s=SimExecManager(sim_params, lb_type="jsq", as_type="dumb")
 s.run_simulation()

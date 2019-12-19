@@ -4,11 +4,11 @@ from typing import List
 from load_client.servers_management import ServerManager, SERVER_STATE_DOWN, SERVER_STATE_INIT, SERVER_STATE_AVAILABLE
 
 
-def get_index_for_queue_list(queue_list:List[int])->int:
+def get_index_for_queue_list(queue_list:List[str])->int:
     index: int = 0
     curr_queue: int
     for curr_queue in queue_list:
-        index = index * 10 + curr_queue
+        index = index * 10 + int(curr_queue)
     return index
 
 class PieDataParser:
@@ -40,11 +40,11 @@ class PieDataParser:
                 continue
             try:
                 # Convert to int and add 2 to all numbers (0=>idle, 1=>initializing, 2=>empty queue, 3=> queue len=1 etc)
-                queue_state_list = [int (i)+2 for i in queue_state_list]
+                queue_state_list = [str(int (i)+2) for i in queue_state_list]
             except ValueError: # Verify that the list contains only numbers
                 print("errrrorrrrrr: ",queue_state_str)
                 continue
-            if not all ((0 <= x <= self.queue_length+2 for x in queue_state_list)):
+            if not all ((0 <= int(x) <= self.queue_length+2 for x in queue_state_list)):
                 continue # One of the numbers is out of range
 
             operation_str = match_obj.group(2).strip()
@@ -84,15 +84,15 @@ class PieDataParser:
 
 def get_queue_state_index (mgr:ServerManager)->int:
     # Build index out of servers queue
-    queue_state_list: List[int] = [] * 0
+    queue_state_list: List[str] = [] * 0
     for server in mgr.full_srv_list:
-        if server.running_state == SERVER_STATE_DOWN:
-            queue_state_list.append (0)
         if server.running_state == SERVER_STATE_INIT:
-            queue_state_list.append (1)
-        if server.running_state == SERVER_STATE_AVAILABLE:
+            queue_state_list.append ('1')
+        elif server.running_state == SERVER_STATE_AVAILABLE:
             num_of_tasks = min(server.current_running_tasks, PieDataParser.queue_length)
-            queue_state_list.append (num_of_tasks+2)
+            queue_state_list.append (str(num_of_tasks+2))
+        else:
+            queue_state_list.append ('0')
 
     index = get_index_for_queue_list(queue_state_list)
     return index
