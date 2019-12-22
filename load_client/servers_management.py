@@ -116,14 +116,19 @@ class Server:
         # In any case we will not stop the server here, because it has to drain first
         pass
 
-    def start_req(self, load):
-        process: subprocess.Popen = subprocess.Popen (["python", "http_client.py", self.srv_ip, str (self.srv_port), str (load)],
+    def start_req(self, load)->int:
+        try:
+            process: subprocess.Popen = subprocess.Popen (["python", "http_client.py", self.srv_ip, str (self.srv_port), str (load)],
                                                       stdout=subprocess.PIPE,
                                                       stderr=subprocess.PIPE)
-        self.current_running_tasks += 1
-        self.process_list.append (process)
-        self.request_tasks_queue_list.append (self.current_running_tasks)
+            self.process_list.append (process)
+            self.request_tasks_queue_list.append (self.current_running_tasks)
+        except:
+            print ("Error: could not start subprocess")
+            return 0
 
+        self.current_running_tasks += 1
+        return 1
 
 class ServerManager:
     cool_down_period = 5.0

@@ -38,10 +38,9 @@ class RequestGenerator:
             print("============== REJECT!!!!!!!!!! " + str (sim_mgr.get_num_of_completed_tasks()))
             return
 
-        server_obj.start_req(sim_mgr.simulation_params.avg_load_level)
-
-        print ("started  task ", sim_mgr.get_tasks_global_index())
-        sim_mgr.inc_tasks_global_index()
+        if server_obj.start_req(sim_mgr.simulation_params.avg_load_level):
+            print ("started  task ", sim_mgr.get_tasks_global_index())
+            sim_mgr.inc_tasks_global_index()
 
 
 

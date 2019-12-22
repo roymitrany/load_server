@@ -59,23 +59,28 @@ class ThresholdAS(BasicAS):
             print ("Num of active servers: ", len(self.srv_manager.active_srv_list), "Num of available servers: ", len(self.srv_manager.available_srv_list))
             return
 
-        # If to little time passed since last change, do nothing
-        if time() - self.srv_manager.cool_down_period < self.last_scale_change:
-            print ("Too soon to remove another server")
-            return
 
 
-        # Do not delete the last server
-        #if len (self.available_srv_list) < 2:
-        #    return
 
+        # If we number of tasks is above threshold, scale out
         if overall_current_tasks>as_high_threshold*overall_possible_tasks:
-            # If number of active servers is bigger than the number of available servers, probably we already started
-            # a new server, so do not start another one
+            # If to little time passed since last change, do nothing
+            if time () - self.srv_manager.cool_down_period < self.last_scale_change:
+                print ("Too soon to start a server")
+                return
+
             self.srv_manager.scale_out()
             self.last_scale_change = time ()
 
         if overall_current_tasks<as_low_threshold*overall_possible_tasks:
+            if time () - self.srv_manager.cool_down_period < self.last_scale_change:
+                print ("Too soon to stop a server")
+                return
+
+            # Do not delete the last server
+            if len (self.srv_manager.available_srv_list) < 2:
+                return
+
             self.srv_manager.scale_in()
             self.last_scale_change = time ()
 
