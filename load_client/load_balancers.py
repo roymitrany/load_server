@@ -5,6 +5,7 @@ Mark's LB algorithm will be added right here.
 '''
 from abc import ABC, abstractmethod
 import random
+from typing import Optional
 
 from load_client.pie_file_data_parser import PieDataParser, get_queue_state_index
 from load_client.servers_management import ServerManager, Server, SERVER_STATE_AVAILABLE
@@ -37,9 +38,9 @@ class JsqLB(BasicLB):
     '''
     Find the shortest queue from all available servers, and return it
     '''
-    def pick_server(self)->Server:
+    def pick_server(self)->Optional[Server]:
         min_length:int = 9999
-        curr_srv: Server
+        curr_srv: Optional[Server] = None
         for server in self.srv_manager.available_srv_list:
             num = server.current_running_tasks
             print ("Queue length for server %s is %d" %(server.srv_port, num))
@@ -48,7 +49,10 @@ class JsqLB(BasicLB):
                 min_length = num
                 curr_srv = server
                 print ("Picking server %d with %d tasks" % (server.srv_port, num))
-        return curr_srv
+        if curr_srv:
+            return curr_srv
+        else:
+            return None
 
 class BellmanLB(BasicLB):
     def __init__(self, mgr):
@@ -70,7 +74,7 @@ class BellmanLB(BasicLB):
             ret_str+=str(server.current_running_tasks)
         return ret_str
 
-    def pick_server(self)->Server:
+    def pick_server(self)->Optional[Server]:
         queue_state_index = get_queue_state_index (self.srv_manager)
         srv_index = self.data_parser.load_balance_policy_list[queue_state_index]
 
