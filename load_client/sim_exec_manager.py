@@ -42,13 +42,8 @@ class SimExecManager:
         self.simulation_finished = False
 
         self.srv_mgr = ServerManager(self, sim_params.initial_num_of_servers)
-        #pie_parser = PieDataParser("pie_file")
-        #self.lb_obj = BellmanLB (self.srv_mgr, pie_parser)
-        #self.as_obj = BellmanAS(self.srv_mgr, pie_parser)
-        #self.lb_obj = JsqLB (self.srv_mgr) # TODO find an intelligent way to get the lb and as classes as parameters
         self.lb_obj = create_lb_obj(lb_type, self.srv_mgr)
         self.as_obj = create_as_obj(as_type, self.srv_mgr)
-        #self.as_obj = ThresholdAS(self.srv_mgr)
 
         self.data_collector = DataCollectionManager(self)
         self.request_generator = RequestGenerator()
@@ -89,10 +84,6 @@ class SimExecManager:
             sleep (time_to_sleep)
             print ("------------after sleeping " + str (time_to_sleep) + " Task no. " + str (i))
             self.request_generator.generate_request (self)
-
-        # wait until all responses arrive back
-        for server in self.srv_mgr.full_srv_list:
-            server.response_thread.join ()
 
         self.set_simulation_finished ()
 

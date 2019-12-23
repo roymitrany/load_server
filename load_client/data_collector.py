@@ -257,8 +257,6 @@ class QueueLenData(DataCollector):
             # For debug, print also the queue length measured in client side
             print ("server version ", str (self.srv_mgr.full_srv_list[i].srv_port), ": ",
                    str (self.srv_mgr.full_srv_list[i].response_tasks_queue_list))
-            print ("client version ", str (self.srv_mgr.full_srv_list[i].srv_port), ": ",
-                   str (self.srv_mgr.full_srv_list[i].request_tasks_queue_list))
 
     def plot_data(self):
         fig, ax = plt.subplots (figsize=(30,15))
