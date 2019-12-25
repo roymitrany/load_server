@@ -1,10 +1,16 @@
+import os
 import re
 from typing import List
 
-from load_client.servers_management import ServerManager, SERVER_STATE_DOWN, SERVER_STATE_INIT, SERVER_STATE_AVAILABLE
+from load_client.servers_management import ServerManager, SERVER_STATE_INIT, SERVER_STATE_AVAILABLE
 
 
 def get_index_for_queue_list(queue_list:List[str])->int:
+    '''
+    Convert a list of queue lengths to decimal integer
+    :param queue_list: the list of queue lengths, as strings
+    :return: a converted integer, that look a lot like the original list
+    '''
     index: int = 0
     curr_queue: int
     for curr_queue in queue_list:
@@ -20,9 +26,10 @@ class PieDataParser:
         # empty string means that no policy assignment for this state. After parsing, should be only for illegal states
         self.scale_in_policy_list: List[str] = [""] * 100000
         self.scale_out_policy_list: List[int] = [0] * 100000  # By default do nothing
-        self.load_balance_policy_list: List[int] = [0] * 100000  # By default do nothing
+        self.load_balance_policy_list: List[int] = [-2] * 100000  # By default do nothing
         self.load_data(filename)
         print('done loading AS data')
+
 
     def load_data(self, filename):
 
@@ -42,7 +49,7 @@ class PieDataParser:
                 # Convert to int and add 2 to all numbers (0=>idle, 1=>initializing, 2=>empty queue, 3=> queue len=1 etc)
                 queue_state_list = [str(int (i)+2) for i in queue_state_list]
             except ValueError: # Verify that the list contains only numbers
-                print("errrrorrrrrr: ",queue_state_str)
+                #prin("errrrorrrrrr: ",queue_state_str)
                 continue
             if not all ((0 <= int(x) <= self.queue_length+2 for x in queue_state_list)):
                 continue # One of the numbers is out of range
@@ -65,17 +72,20 @@ class PieDataParser:
             # Build an index number from the queue state list. The number should look a lot like an n digit
             # number that the list forms. For example, if the list is [1,7,7,3,0] then the index number would be 17730
             index:int = get_index_for_queue_list(queue_state_list)
+            if index == 22022:
+                print ("Hehe")
+
             # build the scale down policy lookup out of the boolean values for each server.
             op:str = ""
             for curr_op in operation_list[0:-2]:
                op = op+str(curr_op)
-            print(index, "->", op)
+            #prin(index, "->", op)
 
             self.scale_in_policy_list[index]=op
 
             if operation_list[-1]>self.num_of_servers:
                 self.scale_out_policy_list[index]=1 # Otherwise will stay 0
-            print(index, "->", self.scale_out_policy_list[index])
+            #prin(index, "->", self.scale_out_policy_list[index])
 
             srv_index = operation_list[-1]%(self.num_of_servers+1)
             if srv_index == self.num_of_servers:

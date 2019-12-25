@@ -15,7 +15,7 @@ max_server_queue_len = 5
 # Interval in seconds between statistics data collection
 data_collection_interval = 1
 
-as_high_threshold = 0.7
+as_high_threshold = 0.6
 as_low_threshold = 0.3
 
 ############################# Results filenames ###############################
@@ -24,6 +24,10 @@ exec_summary_filename = "exec_summary.txt"
 queues_filename = "queues.txt"
 num_of_servers_filename = "num_of_servers.txt"
 calculated_cost_filename = "calculated_cost.txt"
+log_filename = "operation_log.txt"
+scale_in_filename = "bellman_scale_in_mapping.txt"
+scale_out_filename = "bellman_scale_out_mapping.txt"
+lb_filename = "bellman_lb_mapping.txt"
 
 ############################# Reward Parameters ###############################
 # Penalties get negative values. Reward get positive values. This way we can treat everything as a reward

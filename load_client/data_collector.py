@@ -20,7 +20,7 @@ from load_client.servers_management import ServerManager
 class DataCollector(ABC):
 
     def __init__(self, sim_mgr, res_path):
-        self.sim_mgr:'SimExecManager' = sim_mgr
+        self.sim_manager: 'SimExecManager' = sim_mgr
         self.srv_mgr: ServerManager = sim_mgr.srv_mgr
         self.res_path:str = res_path
         self.x_list: List[int] = []
@@ -155,12 +155,12 @@ class SummaryData(DataCollector):
             self.response_counter += len(server.response_duration_list)
             self.total_delay += sum(server.response_duration_list)
 
-        param_obj = self.sim_mgr.simulation_params
+        param_obj = self.sim_manager.simulation_params
         self.f = open (self.filename, "a")
         # Write the test parameters to the file
         param_str = "test_parameters:\n"
-        param_str += "load_balancer: " + str(self.sim_mgr.lb_obj.__class__.__name__) + "\n"
-        param_str += "auto scaler: " + str(self.sim_mgr.as_obj.__class__.__name__) + "\n"
+        param_str += "load_balancer: " + str(self.sim_manager.lb_obj.__class__.__name__) + "\n"
+        param_str += "auto scaler: " + str(self.sim_manager.as_obj.__class__.__name__) + "\n"
         param_str += "num_of_tasks: " + str(param_obj.num_of_tasks) + "\n"
         param_str += "avg_load_level: " + str(param_obj.avg_load_level) + "\n"
         param_str += "initial_num_of_servers: " + str(param_obj.initial_num_of_servers) + "\n"
@@ -172,7 +172,7 @@ class SummaryData(DataCollector):
         res_str = "Test Results: \n"
         res_str += "scale_outs: " + str(self.srv_mgr.total_scale_out_counter) +  "\n"
         res_str += "scale_ins: " + str(self.srv_mgr.total_scale_in_counter) +  "\n"
-        res_str += "rejections: " + str(self.sim_mgr.get_num_of_rejections()) +  "\n"
+        res_str += "rejections: " + str(self.sim_manager.get_num_of_rejections()) + "\n"
         res_str += "total_server_responses: " + str(self.response_counter) +  "\n"
         res_str += "sum_of_all_server_processing_time: " + str(self.total_delay) +  "\n"
         self.f.write(res_str + "\n")
@@ -183,35 +183,25 @@ class SummaryData(DataCollector):
 
     def print_data(self):
         # print totals
-        print ("==================total started tasks: " + str (self.sim_mgr.get_tasks_global_index ()))
-        print ("==================Number of rejects: " + str (self.sim_mgr.get_num_of_rejections()))
-        print ("==========  requests per server ===========")
+        self.sim_manager.logger.info ("==================total started tasks: " + str (self.sim_manager.get_num_of_completed_tasks()))
+        self.sim_manager.logger.info ("==================Number of rejects: " + str (self.sim_manager.get_num_of_rejections()))
+        self.sim_manager.logger.info ("==========  requests per server ===========")
         for server in self.srv_mgr.full_srv_list:
-            print ("server %s sent %d requests" % (server.srv_port, len (server.response_duration_list)))
+            self.sim_manager.logger.info ("server %s sent %d requests" % (server.srv_port, len (server.response_duration_list)))
 
         for server in self.srv_mgr.full_srv_list:
-            print ("server %s duration: " % server.srv_port, end=" ")
+            log_str = "server " + str(server.srv_port) +  "duration: "
+
+            # Print task processing duration
             for num in server.response_duration_list:
-                print (num, end=" ")
-            print ("")
-            print ("server %s queue length: " % server.srv_port, end=" ")
+                log_str += str(num) + " "
+            self.sim_manager.logger.info(log_str)
+
+            # Print queueing queue length
+            log_str =  "server " + str(server.srv_port)  + " queue length: "
             for num in server.response_tasks_queue_list:
-                print (num, end=" ")
-            print ("")
-
-        print ("^^^^^^^^^^^^^^^^^^^^^^^^Reward  calculation^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-        print ("scale out cost: " , self.cost_calc_obj.scale_out_cost)
-        print ("scale in cost: " , self.cost_calc_obj.scale_in_cost)
-        print ("rejection cost: " , self.cost_calc_obj.rejection_cost)
-        print ("delay cost: " , self.cost_calc_obj.delay_cost)
-        print ("server execution cost: " , self.cost_calc_obj.server_execution_cost)
-
-        print ("Service earnings: " , self.cost_calc_obj.response_cost)
-
-        print ("Total Reward: " , self.cost_calc_obj.total_reward)
-        if self.sim_mgr.get_num_of_completed_tasks()!=self.sim_mgr.get_num_of_rejections():
-            print ("reward per response", str(self.cost_calc_obj.total_reward/(self.sim_mgr.get_num_of_completed_tasks()-self.sim_mgr.get_num_of_rejections())))
-        print ("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+                log_str += str(num) + " "
+            self.sim_manager.logger.info(log_str)
 
     def plot_data(self):
             pass # Summary does not produce a graph
@@ -238,6 +228,7 @@ class QueueLenData(DataCollector):
     def save_ongoing_data (self):
         """
         The queue len data is periodic driven, and therefore called periodically from the "collect_data": thread
+        It indicates the dequeuing queue length, which is shorter than the enqueueing queue length
         :return:
         """
         self.counter += 1
@@ -250,15 +241,10 @@ class QueueLenData(DataCollector):
         self.f.write(line + "\n") # write the csv line to the file
 
     def print_data(self):
-        #print ("X axis: " + str(self.x_list))
         for i in range(0, len(self.srv_mgr.full_srv_list)):
-            #print ("Y axis for     ", str(self.srv_mgr.full_srv_list[i].srv_port), ": ", str (self.y_list[i]))
-
             # For debug, print also the queue length measured in client side
-            print ("server version ", str (self.srv_mgr.full_srv_list[i].srv_port), ": ",
+            self.sim_manager.logger.info ("server version " + str (self.srv_mgr.full_srv_list[i].srv_port) + ": " +\
                    str (self.srv_mgr.full_srv_list[i].response_tasks_queue_list))
-            print ("client version ", str (self.srv_mgr.full_srv_list[i].srv_port), ": ",
-                   str (self.srv_mgr.full_srv_list[i].request_tasks_queue_list))
 
     def plot_data(self):
         fig, ax = plt.subplots (figsize=(30,15))
@@ -302,7 +288,7 @@ class NumOfServersData(DataCollector):
 
     def print_data(self):
         #print ("X axis: " + str(self.x_list))
-        print ("num of active servers each sample interval", self.y_list[0])
+        self.sim_manager.logger.info ("num of active servers each sample interval" + str(self.y_list[0]))
 
     def plot_data(self):
         fig, ax = plt.subplots (figsize=(30,15))
@@ -316,18 +302,15 @@ class NumOfServersData(DataCollector):
 
 class DataCollectionManager:
     def __init__(self, sim_mgr):
-        ts = time.time()
-
+        res_path = sim_mgr.res_path
         # Create folder for all the results
-        self.res_path = os.path.join(os.getcwd(), "results", str(ts))
-        os.makedirs(self.res_path)
-        self.cost_calc_obj = CostCalculator(self.res_path)
+        self.cost_calc_obj = CostCalculator(res_path)
 
         # Create a class of queue length data
-        queue_len_data = QueueLenData(sim_mgr, self.res_path)
-        self.response_duration_data = ResponseDurationData(sim_mgr, self.res_path)
-        self.summary_data = SummaryData(sim_mgr, self.res_path, self.cost_calc_obj)
-        self.num_of_servers_data = NumOfServersData(sim_mgr, self.res_path)
+        queue_len_data = QueueLenData(sim_mgr, res_path)
+        self.response_duration_data = ResponseDurationData(sim_mgr, res_path)
+        self.summary_data = SummaryData(sim_mgr, res_path, self.cost_calc_obj)
+        self.num_of_servers_data = NumOfServersData(sim_mgr, res_path)
 
         data_collection_thread = threading.Thread (target=collect_data, args=(self,sim_mgr,))
         data_collection_thread.start ()

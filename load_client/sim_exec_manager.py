@@ -1,8 +1,11 @@
+import logging
+import os
 import random
-from time import sleep
+from time import sleep, time
 
 from load_client.auto_scaler import DumbAS, BasicAS, ThresholdAS, BellmanAS, create_as_obj
 from load_client.data_collector import DataCollectionManager
+from load_client.global_vars import log_filename
 from load_client.load_balancers import JsqLB, BasicLB, BellmanLB, RoundRobinLB, create_lb_obj
 from load_client.pie_file_data_parser import PieDataParser
 from load_client.request_generator import RequestGenerator
@@ -27,6 +30,10 @@ class SimExecManager:
     as_obj:BasicAS
     tasks_completed:int
     def __init__(self, sim_params:SimulationParams, lb_type="jsq", as_type="threshold"):
+        ts = time()
+        self.res_path = os.path.join(os.getcwd(), "results", str(ts))
+        os.makedirs(self.res_path)
+
         # the number of tasks to be completed before we stop the test
         self.simulation_params = sim_params
         # Number of the tasks that were completed (not sure if we will ever use it)
@@ -42,17 +49,31 @@ class SimExecManager:
         self.simulation_finished = False
 
         self.srv_mgr = ServerManager(self, sim_params.initial_num_of_servers)
-        #pie_parser = PieDataParser("pie_file")
-        #self.lb_obj = BellmanLB (self.srv_mgr, pie_parser)
-        #self.as_obj = BellmanAS(self.srv_mgr, pie_parser)
-        #self.lb_obj = JsqLB (self.srv_mgr) # TODO find an intelligent way to get the lb and as classes as parameters
-        self.lb_obj = create_lb_obj(lb_type, self.srv_mgr)
-        self.as_obj = create_as_obj(as_type, self.srv_mgr)
-        #self.as_obj = ThresholdAS(self.srv_mgr)
+        self.lb_obj = create_lb_obj(lb_type, self)
+        self.as_obj = create_as_obj(as_type, self)
 
         self.data_collector = DataCollectionManager(self)
         self.request_generator = RequestGenerator()
 
+        log_file_name = os.path.join (self.res_path, log_filename)
+        # create logger with 'spam_application'
+        self.logger = logging.getLogger ("mark_sim")
+        self.logger.setLevel (logging.DEBUG)
+
+        # create file handler which logs even debug messages
+        fh = logging.FileHandler (log_file_name)
+        fh.setLevel (logging.DEBUG)
+        # create console handler with a higher log level
+        ch = logging.StreamHandler ()
+        ch.setLevel (logging.INFO)
+
+        formatter = logging.Formatter ('%(asctime)s.%(msecs)03d: %(funcName)s: %(message)s',datefmt='%H:%M:%S')
+        fh.setFormatter (formatter)
+        ch.setFormatter (formatter)
+
+        # add the handlers to the logger
+        self.logger.addHandler (fh)
+        self.logger.addHandler (ch)
 
     def get_num_of_completed_tasks(self):
         return self.tasks_completed
@@ -60,20 +81,11 @@ class SimExecManager:
     def inc_num_of_completed_tasks(self):
         self.tasks_completed += 1
 
-
     def get_num_of_rejections(self):
         return self.num_of_rejections
 
     def inc_num_of_rejections(self):
         self.num_of_rejections += 1
-
-
-    def get_tasks_global_index(self):
-        return self.tasks_global_index
-
-    def inc_tasks_global_index(self):
-        self.tasks_global_index += 1
-
 
     def is_simulation_finished(self):
         return self.simulation_finished
@@ -87,12 +99,10 @@ class SimExecManager:
             time_to_sleep = random.expovariate (
                 self.simulation_params.average_rate)  # TODO: take the timing from an external time generator
             sleep (time_to_sleep)
-            print ("------------after sleeping " + str (time_to_sleep) + " Task no. " + str (i))
-            self.request_generator.generate_request (self)
+            #self.logger.debug (">>>>>>>>>Sending task " + str(i) + " after "  + '{0:.2f}'.format(time_to_sleep) + " sec." )
+            self.logger.debug (">>>>>>>>>Starting task " + str (i))
 
-        # wait until all responses arrive back
-        for server in self.srv_mgr.full_srv_list:
-            server.response_thread.join ()
+            self.request_generator.generate_request (self)
 
         self.set_simulation_finished ()
 
@@ -103,15 +113,15 @@ class SimExecManager:
 
 #lb_type: random round_robin jsq bellman
 #as_type: dumb threshold bellman
-sim_params = SimulationParams(num_of_tasks=10000, avg_load_level=7, initial_num_of_servers=5, average_rate=3.6, server_startup_time=2)
+sim_params = SimulationParams(num_of_tasks=200, avg_load_level=7, initial_num_of_servers=5, average_rate=3.6, server_startup_time=2)
 s=SimExecManager(sim_params, lb_type="jsq", as_type="threshold")
 s.run_simulation()
 
-s=SimExecManager(sim_params, lb_type="bellman", as_type="bellman")
-s.run_simulation()
+#s=SimExecManager(sim_params, lb_type="bellman", as_type="bellman")
+#s.run_simulation()
 
-s=SimExecManager(sim_params, lb_type="jsq", as_type="dumb")
-s.run_simulation()
+#s=SimExecManager(sim_params, lb_type="jsq", as_type="dumb")
+#s.run_simulation()
 
 
 
