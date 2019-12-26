@@ -2,7 +2,7 @@ import threading
 
 import numpy as np
 from flask import Flask
-from flask_restplus import Api, Resource, fields
+from flask_restplus import Api, Resource, fields, abort
 import time
 import argparse
 from queue import Queue
@@ -54,33 +54,10 @@ def dequeue_load_cpu():
         task_obj.result_event.set ()
 
 
-@ns.route('/create_load/<int:level>')
-@ns.param('level', description='Load Level')
-@ns.response(400, 'Invalid operation')
-class LoadLevel(Resource):
-    # Trying to define a static variable
-    #counter = 0
-    @ns.doc('load_cpu')
-    @ns.marshal_with(srv_state_concurrent)
-    @ns.response(200, 'Success')
-    def get(self, level):
-        """Load CPU by level. The load will be about level*2 seconds """
-        global counter
-        state = {}
-        begin_ts = time.time ()
-        load_cpu(level)
-        end_ts = time.time ()
-        duration_in_millis = int(1000*(end_ts-begin_ts))
-        counter += 1
-        state['completed_tasks'] = counter
-        state['duration'] = str(duration_in_millis)
-        return state
-
-
-
 @ns.route('/queue_load/<int:level>')
 @ns.param('level', description='Load Level')
 @ns.response(400, 'Invalid operation')
+@ns.response(503, 'Server Too busy')
 class QueueLoad(Resource):
     # Trying to define a static variable
     #counter = 0
@@ -95,9 +72,14 @@ class QueueLoad(Resource):
         res_event = threading.Event ()
         task_obj = LoadTask(counter, level, begin_ts, res_event)
         # Tell how long is the queue
-        q_size_enqueue = 1 #If nothing is running, out task is the only one in the system, so queue size is 1
+        q_size_enqueue = 1 #If nothing is running, our task is the only one in the system, so queue size is 1
         if num_of_tasks>0:
             q_size_enqueue = tasks_queue.qsize() + 2 # There is something running, plus our task plus all the waiting tasks to the queue
+
+        # If the queue is too long, return an error
+        #print (str(tasks_queue.qsize()))
+        if tasks_queue.qsize() >= 2:
+            abort (503,message="Server overloaded, queue size is"+str(tasks_queue.qsize()))
         tasks_queue.put (task_obj)
         res_event.wait (timeout=60)
         end_ts = time.time ()
@@ -122,7 +104,7 @@ class Ping(Resource):
         return state
 
 @ns.route('/reset_tasks_counter')
-class Ping(Resource):
+class ResetCounter(Resource):
     @ns.doc('reset the completed tasks counter. More convenient that restarting the server')
     @ns.marshal_with(srv_state_concurrent)
     @ns.response(200, 'Success', srv_state_concurrent)
