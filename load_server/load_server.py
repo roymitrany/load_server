@@ -79,7 +79,7 @@ class QueueLoad(Resource):
         # If the queue is too long, return an error
         #print (str(tasks_queue.qsize()))
         if tasks_queue.qsize() >= 8:
-            abort (503,message="Server overloaded, queue size is"+str(tasks_queue.qsize()))
+            abort (503,message="Server overloaded, queue size is: "+str(tasks_queue.qsize()))
         tasks_queue.put (task_obj)
         res_event.wait (timeout=60)
         end_ts = time.time ()

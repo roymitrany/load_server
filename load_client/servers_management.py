@@ -8,6 +8,8 @@ import requests as req
 
 from typing import TYPE_CHECKING
 
+from requests import Response
+
 from load_client.global_vars import full_srv_ip_addr_list, full_srv_port_list
 
 SERVER_STATE_DOWN = 0
@@ -49,7 +51,7 @@ def send_http_queue_load_request(server:'Server', load_level=1, timeout=10):
     get_path = "/load/queue_load/" + str (load_level)
     url = "http://" + server.srv_ip + ":" + str (server.srv_port) + get_path
     try:
-        resp = req.get (url, timeout=timeout)
+        resp:Response = req.get (url, timeout=timeout)
         output = resp.content.decode ("utf-8")
         if output.find("duration") > -1:
             server.notify_response(output)
@@ -59,7 +61,7 @@ def send_http_queue_load_request(server:'Server', load_level=1, timeout=10):
         server.notify_error("timeout")
     except Exception as e:
         print(e)
-        server.notify_error("unknown_error")
+        server.notify_error("unknown_error", resp=resp)
 
 
 class Server:
@@ -105,12 +107,18 @@ class Server:
         self.current_running_tasks += 1
         return 1
 
-    def notify_error(self, param):
+    def notify_error(self, param, resp:Optional[Response] = None):
         # timeout occurred, update counters
-        print ("INCOMPLETE TASK!!!", param)
+        err_str = "INCOMPLETE TASK!!!" + param
+        if resp:
+            err_str += " Response Code: " + str(resp.encoding)
+            err_str += " Response Message: " + resp.content.decode("utf-8")
+        self.sim_mgr.logger.debug(err_str)
+
         self.current_running_tasks -= 1
         self.sim_mgr.inc_num_of_completed_tasks ()
         self.sim_mgr.inc_num_of_rejections ()
+
 
 
     def notify_response(self, output):
