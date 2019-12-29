@@ -3,11 +3,10 @@ import os
 import random
 from time import sleep, time
 
-from load_client.auto_scaler import DumbAS, BasicAS, ThresholdAS, BellmanAS, create_as_obj
+from load_client.auto_scaler import BasicAS, create_as_obj
 from load_client.data_collector import DataCollectionManager
 from load_client.global_vars import log_filename
-from load_client.load_balancers import JsqLB, BasicLB, BellmanLB, RoundRobinLB, create_lb_obj
-from load_client.pie_file_data_parser import PieDataParser
+from load_client.load_balancers import BasicLB, create_lb_obj
 from load_client.request_generator import RequestGenerator
 from load_client.servers_management import ServerManager
 
@@ -29,13 +28,13 @@ class SimExecManager:
     lb_obj:BasicLB
     as_obj:BasicAS
     tasks_completed:int
-    def __init__(self, sim_params:SimulationParams, lb_type="jsq", as_type="threshold"):
+    def __init__(self, simu_params:SimulationParams, lb_type="jsq", as_type="threshold"):
         ts = time()
         self.res_path = os.path.join(os.getcwd(), "results", str(ts))
         os.makedirs(self.res_path)
 
         # the number of tasks to be completed before we stop the test
-        self.simulation_params = sim_params
+        self.simulation_params = simu_params
         # Number of the tasks that were completed (not sure if we will ever use it)
         self.tasks_completed = 0
 
@@ -48,7 +47,7 @@ class SimExecManager:
         # Indicator that simulation is finished (in order to stop data collection
         self.simulation_finished = False
 
-        self.srv_mgr = ServerManager(self, sim_params.initial_num_of_servers)
+        self.srv_mgr = ServerManager(self, simu_params.initial_num_of_servers)
         self.lb_obj = create_lb_obj(lb_type, self)
         self.as_obj = create_as_obj(as_type, self)
 
@@ -95,15 +94,23 @@ class SimExecManager:
 
     def run_simulation(self):
         # Loop for generating requests
+        interval = int(self.simulation_params.num_of_tasks/10)
+        factor = 1
+        factor_iteration_counter = 0
         for i in range (self.simulation_params.num_of_tasks):
             time_to_sleep = random.expovariate (
-                self.simulation_params.average_rate)  # TODO: take the timing from an external time generator
+                self.simulation_params.average_rate)*factor
             sleep (time_to_sleep)
             #self.logger.debug (">>>>>>>>>Sending task " + str(i) + " after "  + '{0:.2f}'.format(time_to_sleep) + " sec." )
             self.logger.debug (">>>>>>>>>Starting task " + str (i))
 
             self.request_generator.generate_request (self)
-
+            factor_iteration_counter+=1
+            # If we had enough iterations with the current factor, create a new factor and reset the counter
+            if factor_iteration_counter >= interval:
+                factor_iteration_counter = 0
+                factor = random.uniform(0.7, 1.3)
+                self.logger.debug("New iteration factor is: " + str(factor))
         self.set_simulation_finished ()
 
 
@@ -113,7 +120,7 @@ class SimExecManager:
 
 #lb_type: random round_robin jsq bellman
 #as_type: dumb threshold bellman
-sim_params = SimulationParams(num_of_tasks=100, avg_load_level=7, initial_num_of_servers=5, average_rate=3.6, server_startup_time=2)
+sim_params = SimulationParams(num_of_tasks=20, avg_load_level=7, initial_num_of_servers=5, average_rate=3.6, server_startup_time=2)
 #s=SimExecManager(sim_params, lb_type="jsq", as_type="threshold")
 #s.run_simulation()
 

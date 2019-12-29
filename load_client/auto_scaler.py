@@ -97,19 +97,8 @@ class BellmanAS(BasicAS):
         super ().__init__ (mgr)
         self.data_parser:PieDataParser = PieDataParser("pie.txt")
 
-        # Start a separate file, and write in the AS scale in mapping
-        filename = os.path.join(self.sim_manager.res_path, scale_in_filename)
-        f = open (filename, "w")
+        self.print_scale_in_file()
 
-        for index in range(len(self.data_parser.scale_in_policy_list)):
-            op = self.data_parser.scale_in_policy_list[index]
-            if  op == "":
-                continue
-            else:
-                scale_in_str = str(index).zfill(5)
-                if scale_in_str.find("3")>=0:
-                    f.write(scale_in_str + "-->" + op + "\n")
-        f.close()
 
         # Another separate file for AS scale out mapping
         filename = os.path.join(self.sim_manager.res_path, scale_out_filename)
@@ -167,6 +156,45 @@ class BellmanAS(BasicAS):
         if op>0:
             self.sim_manager.logger.info ("+++++++++Bellman scale out: index is " + str (index))
             self.srv_manager.scale_out()
+
+    def print_scale_in_file(self):
+        # Start a separate file, and write in the AS scale in mapping
+        filename = os.path.join(self.sim_manager.res_path, scale_in_filename)
+        f = open (filename, "w")
+
+        num_of_scale_ins=0
+        num_of_ignores=0
+        highest_scale_in_num_of_tasks = 0
+        for index in range(len(self.data_parser.scale_in_policy_list)):
+            op = self.data_parser.scale_in_policy_list[index]
+            if  op == "":
+                continue
+            else:
+                scale_in_str = str(index).zfill(5)
+                empty_server = scale_in_str.find("3")
+                if empty_server>=0:
+                    do_scale_in = op[empty_server]
+                    if do_scale_in=='1':
+                        total_tasks = -1 # delete one for the task that just completed
+                        total_active_servers = 0
+                        for i in range(len(scale_in_str)):
+                            if int(scale_in_str[i])>=2:
+                                total_active_servers+=1
+                                total_tasks+=(int(scale_in_str[i])-2)
+                                if total_tasks>highest_scale_in_num_of_tasks:
+                                    highest_scale_in_num_of_tasks=total_tasks
+                        f.write(scale_in_str + "-->" + op + ":  INNNNN: Active servers: " + str(total_active_servers) +
+                                " Active Tasks: " + str(total_tasks) + "\n")
+                        num_of_scale_ins+=1
+                    else:
+                        f.write(scale_in_str + "-->" + op + ":  IGNORE\n")
+                        num_of_ignores+=1
+        f.write("total states with scale in: " + str(num_of_scale_ins) + "\n")
+        f.write("total states without scale in: " + str(num_of_ignores) + "\n")
+        f.write("Highest number of tasks with scale in: " + str(highest_scale_in_num_of_tasks) + "\n")
+
+        f.close()
+
 
 def create_as_obj(as_type, mgr)->BasicAS: #TODO Throw exception for type mismatch
     if as_type == "dumb":
