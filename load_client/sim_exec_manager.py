@@ -13,12 +13,14 @@ from load_client.servers_management import ServerManager
 
 class SimulationParams:
     # Force to specify the params in object construction
-    def __init__(self, num_of_tasks=0, avg_load_level=0, initial_num_of_servers=0, average_rate=0.0, server_startup_time=0):
+    def __init__(self, num_of_tasks=0, avg_load_level=0, initial_num_of_servers=0, average_rate=0.0,
+                 deviation:float = 0, server_startup_time=0):
         self.num_of_tasks = num_of_tasks
         self.avg_load_level = avg_load_level
         self.initial_num_of_servers = initial_num_of_servers
         self.average_rate = average_rate
         self.server_startup_time = server_startup_time
+        self.deviation = deviation
 
 
 class SimExecManager:
@@ -30,7 +32,10 @@ class SimExecManager:
     tasks_completed:int
     def __init__(self, simu_params:SimulationParams, lb_type="jsq", as_type="threshold"):
         ts = time()
-        self.res_path = os.path.join(os.getcwd(), "results", str(ts))
+        folder_str = str (simu_params.average_rate) + "_" + str (simu_params.num_of_tasks) + "_" + \
+                     str (simu_params.deviation) + "_" + \
+                     lb_type + "_" + as_type + "_" + str(ts).split(".")[0][-4:]
+        self.res_path = os.path.join(os.getcwd(), "results", folder_str)
         os.makedirs(self.res_path)
 
         # the number of tasks to be completed before we stop the test
@@ -56,7 +61,7 @@ class SimExecManager:
 
         log_file_name = os.path.join (self.res_path, log_filename)
         # create logger with 'spam_application'
-        self.logger = logging.getLogger ("mark_sim")
+        self.logger = logging.getLogger (str(ts))
         self.logger.setLevel (logging.DEBUG)
 
         # create file handler which logs even debug messages
@@ -97,21 +102,22 @@ class SimExecManager:
         interval = int(self.simulation_params.num_of_tasks/10)
         factor = 1
         factor_iteration_counter = 0
-        for i in range (self.simulation_params.num_of_tasks):
+        for taskk in range (self.simulation_params.num_of_tasks):
             time_to_sleep = random.expovariate (
                 self.simulation_params.average_rate)*factor
+            if time_to_sleep<0: continue
             sleep (time_to_sleep)
-            #self.logger.debug (">>>>>>>>>Sending task " + str(i) + " after "  + '{0:.2f}'.format(time_to_sleep) + " sec." )
-            self.logger.debug (">>>>>>>>>Starting task " + str (i))
+            self.logger.info (">>>>>>>>>Starting task " + str (taskk))
 
             self.request_generator.generate_request (self)
             factor_iteration_counter+=1
             # If we had enough iterations with the current factor, create a new factor and reset the counter
             if factor_iteration_counter >= interval:
                 factor_iteration_counter = 0
-                factor = random.uniform(0.7, 1.3)
+                factor = random.uniform(1-self.simulation_params.deviation, 1+self.simulation_params.deviation)
                 self.logger.debug("New iteration factor is: " + str(factor))
         self.set_simulation_finished ()
+        logging.shutdown ()
 
 
 # Initialize the server manager first, everything depends on it
@@ -120,17 +126,40 @@ class SimExecManager:
 
 #lb_type: random round_robin jsq bellman
 #as_type: dumb threshold bellman
-sim_params = SimulationParams(num_of_tasks=20, avg_load_level=7, initial_num_of_servers=5, average_rate=3.6, server_startup_time=2)
-#s=SimExecManager(sim_params, lb_type="jsq", as_type="threshold")
-#s.run_simulation()
+'''sim_params = SimulationParams(num_of_tasks=2500, avg_load_level=7, initial_num_of_servers=4, average_rate=4.0, server_startup_time=2)
+s=SimExecManager(sim_params, lb_type="jsq", as_type="threshold")
+s.run_simulation()
 
 s=SimExecManager(sim_params, lb_type="bellman", as_type="bellman")
 s.run_simulation()
 
-#s=SimExecManager(sim_params, lb_type="jsq", as_type="dumb")
-#s.run_simulation()
+sim_params = SimulationParams(num_of_tasks=2500, avg_load_level=7, initial_num_of_servers=4, average_rate=4.0, server_startup_time=2)
+s=SimExecManager(sim_params, lb_type="jsq", as_type="dumb")
+s.run_simulation()
+'''
+for rate in range(2,8):
+    sim_params = SimulationParams(num_of_tasks=25, avg_load_level=7, initial_num_of_servers=5, average_rate=rate, server_startup_time=2)
+    s = SimExecManager (sim_params, lb_type="jsq", as_type="threshold")
+    s.run_simulation ()
 
+    s = SimExecManager (sim_params, lb_type="bellman", as_type="bellman")
+    s.run_simulation ()
 
+    sim_params.initial_num_of_servers = min(int(rate/2)+2,5)
+    s = SimExecManager (sim_params, lb_type="jsq", as_type="dumb")
+    s.run_simulation ()
 
+for i in range (1, 17, 3):
+    devi:float = i/10
+    sim_params = SimulationParams (num_of_tasks=25, avg_load_level=7, initial_num_of_servers=5, average_rate=4,
+                                   deviation=devi, server_startup_time=2)
+    s=SimExecManager(sim_params, lb_type="jsq", as_type="threshold")
+    s.run_simulation()
+
+    s=SimExecManager(sim_params, lb_type="bellman", as_type="bellman")
+    s.run_simulation()
+
+    s = SimExecManager (sim_params, lb_type="jsq", as_type="dumb")
+    s.run_simulation ()
 
 exit(0)

@@ -166,6 +166,7 @@ class SummaryData(DataCollector):
         param_str += "initial_num_of_servers: " + str(param_obj.initial_num_of_servers) + "\n"
         param_str += "average_rate: " + str(param_obj.average_rate) + "\n"
         param_str += "server_startup_time: " + str(param_obj.server_startup_time) + "\n"
+        param_str += "load_deviation: " + str (param_obj.deviation) + "\n"
         self.f.write (param_str + "\n")
 
         # Write the result summary
@@ -190,7 +191,7 @@ class SummaryData(DataCollector):
             self.sim_manager.logger.info ("server %s sent %d requests" % (server.srv_port, len (server.response_duration_list)))
 
         for server in self.srv_mgr.full_srv_list:
-            log_str = "server " + str(server.srv_port) +  "duration: "
+            log_str = "server " + str(server.srv_port) +  " duration: "
 
             # Print task processing duration
             for num in server.response_duration_list:
