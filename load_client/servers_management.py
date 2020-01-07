@@ -50,18 +50,19 @@ def send_http_queue_load_request(server:'Server', load_level=1, timeout=10):
     # print ("generating request....")
     get_path = "/load/queue_load/" + str (load_level)
     url = "http://" + server.srv_ip + ":" + str (server.srv_port) + get_path
+    output = ""
     try:
         resp:Response = req.get (url, timeout=timeout)
         output = resp.content.decode ("utf-8")
-        if output.find("duration") > -1:
-            server.notify_response(output)
-        else:
-            server.notify_error("bad_response")
     except req.ReadTimeout:
         server.notify_error("timeout")
     except Exception as e:
         print(e)
         server.notify_error("unknown_error", resp=resp)
+    if output.find("duration") > -1:
+        server.notify_response(output)
+    else:
+        server.notify_error("bad_response")
 
 
 class Server:
@@ -116,6 +117,7 @@ class Server:
         self.sim_mgr.logger.debug(err_str)
 
         self.current_running_tasks -= 1
+        self.current_running_tasks = max(0, self.current_running_tasks) #tired of debugging
         self.sim_mgr.inc_num_of_completed_tasks ()
         self.sim_mgr.inc_num_of_rejections ()
 
