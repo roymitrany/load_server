@@ -80,12 +80,12 @@ class ThresholdAS(BasicAS):
 
         if overall_current_tasks<as_low_threshold*overall_possible_tasks:
             last_change_delta = time () - self.last_scale_change
-            if last_change_delta < self.srv_manager.cool_down_period:
+            if last_change_delta < self.srv_manager.cool_down_period*8:
                 self.sim_manager.logger.debug("Too soon to stop a server. Time from last change: " + str(last_change_delta))
                 return
 
             # Do not delete the last server
-            if len (self.srv_manager.available_srv_list) < 3:
+            if len (self.srv_manager.available_srv_list) <= 3:
                 return
 
             self.srv_manager.scale_in()
@@ -135,7 +135,7 @@ class BellmanAS(BasicAS):
 
         # UGLY PATCH: increment 1 for the current server to match with pie (mark reduces the queue length only after scale in decision)
         # But the index can't exceed the max queue len don't do this trick
-        if str(index)[srv_index] < PieDataParser.queue_length:
+        if int(str(index)[srv_index]) < PieDataParser.queue_length:
             index = index + 10**(4-srv_index)
 
 
