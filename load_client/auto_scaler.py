@@ -133,17 +133,20 @@ class BellmanAS(BasicAS):
         # get index out of servers queue
         index = get_queue_state_index (self.srv_manager) # TODO manipulate index to take the one where current server has one task more than indicated
 
-        # increment 1 for the current server to match with pie (mark reduces the queue length only after scale in decision)
-        fixed_index = index + 10**(4-srv_index)
+        # UGLY PATCH: increment 1 for the current server to match with pie (mark reduces the queue length only after scale in decision)
+        # But the index can't exceed the max queue len don't do this trick
+        if str(index)[srv_index] < PieDataParser.queue_length:
+            index = index + 10**(4-srv_index)
 
-        op = self.data_parser.scale_in_policy_list[fixed_index]
-        self.sim_manager.logger.debug ("Index is " + str (fixed_index) + \
+
+        op = self.data_parser.scale_in_policy_list[index]
+        self.sim_manager.logger.debug ("Index is " + str (index) + \
                                       " op is: " + str (op) + \
                                       " current available servers: " + self.get_available_servers_vec () + \
                                       " current running tasks: " + self.get_current_running_tasks_vec ())
         self.sim_manager.logger.debug(" scale in for server " + str(srv_index) + " queue size " + str(self.srv_manager.full_srv_list[srv_index].current_running_tasks))
         if (int(op[srv_index])==1) and (self.srv_manager.full_srv_list[srv_index].current_running_tasks ==0):
-            self.sim_manager.logger.info ("---------Bellman scale in: index is " + str (fixed_index) +  \
+            self.sim_manager.logger.info ("---------Bellman scale in: index is " + str (index) +  \
                                            " op is: " + str (op) + \
                                            " current available servers: " + self.get_available_servers_vec () + \
                                            " current running tasks: " + self.get_current_running_tasks_vec ())
