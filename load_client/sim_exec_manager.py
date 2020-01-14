@@ -15,13 +15,14 @@ from load_client.servers_management import ServerManager
 class SimulationParams:
     # Force to specify the params in object construction
     def __init__(self, num_of_tasks=0, avg_load_level=0, initial_num_of_servers=0, average_rate=0.0,
-                 deviation:float = 0, server_startup_time=0):
+                 deviation:float = 0, server_startup_time=0, pie_file:str="pie.txt"):
         self.num_of_tasks = num_of_tasks
         self.avg_load_level = avg_load_level
         self.initial_num_of_servers = initial_num_of_servers
         self.average_rate = average_rate
         self.server_startup_time = server_startup_time
         self.deviation = deviation
+        self.pie_file = pie_file
 
         # Initialize offset arrays
         self.off_array = [0.0]*25
@@ -135,16 +136,34 @@ class SimExecManager:
 
 
 
-for i in range(40,65,5):
-    rate = i/10
-    sim_params = SimulationParams(num_of_tasks=9999, avg_load_level=6, initial_num_of_servers=5, average_rate=rate, server_startup_time=20)
+sim_params = SimulationParams(num_of_tasks=9999, avg_load_level=6, initial_num_of_servers=5, average_rate=5,
+                              server_startup_time=20, pie_file="pie_dpl_005.txt")
 
-    s = SimExecManager (sim_params, lb_type="bellman", as_type="bellman")
-    s.run_simulation ()
+s = SimExecManager (sim_params, lb_type="bellman", as_type="bellman")
+s.run_simulation ()
 
+sim_params = SimulationParams(num_of_tasks=9999, avg_load_level=6, initial_num_of_servers=5, average_rate=5,
+                              server_startup_time=10, pie_file="pie_dpl_01.txt")
+
+s = SimExecManager (sim_params, lb_type="bellman", as_type="bellman")
+s.run_simulation ()
+
+sim_params = SimulationParams(num_of_tasks=9999, avg_load_level=6, initial_num_of_servers=5, average_rate=5,
+                              server_startup_time=5, pie_file="pie_dpl_02.txt")
+
+s = SimExecManager (sim_params, lb_type="bellman", as_type="bellman")
+s.run_simulation ()
+
+sim_params = SimulationParams(num_of_tasks=9999, avg_load_level=6, initial_num_of_servers=5, average_rate=5,
+                              server_startup_time=2, pie_file="pie_dpl_05.txt")
+
+s = SimExecManager (sim_params, lb_type="bellman", as_type="bellman")
+s.run_simulation ()
+
+'''
 for i in range(65,90,5):
     rate = i/10
-    sim_params = SimulationParams(num_of_tasks=9999, avg_load_level=6, initial_num_of_servers=5, average_rate=rate, server_startup_time=20)
+    sim_params = SimulationParams(num_of_tasks=9999, avg_load_level=6, initial_num_of_servers=5, average_rate=rate, server_startup_time=2)
     s = SimExecManager (sim_params, lb_type="jsq", as_type="threshold")
     s.run_simulation ()
 
@@ -172,7 +191,7 @@ for i in range (18, 30, 2):
     s.run_simulation ()
 
 
-'''sim_params = SimulationParams (num_of_tasks=500, avg_load_level=6, initial_num_of_servers=2, average_rate=10,
+sim_params = SimulationParams (num_of_tasks=500, avg_load_level=6, initial_num_of_servers=2, average_rate=10,
                                    deviation=0, server_startup_time=2)
 s=SimExecManager(sim_params, lb_type="bellman", as_type="bellman")
 s.run_simulation()

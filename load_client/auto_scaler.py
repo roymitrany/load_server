@@ -93,9 +93,10 @@ class ThresholdAS(BasicAS):
 
 class BellmanAS(BasicAS):
 
-    def __init__(self, mgr):
+    def __init__(self, mgr:'SimExecManager'):
         super ().__init__ (mgr)
-        self.data_parser:PieDataParser = PieDataParser("pie.txt")
+        pie_file: str = mgr.simulation_params.pie_file
+        self.data_parser:PieDataParser = PieDataParser(pie_file)
 
         self.print_scale_in_file()
 
