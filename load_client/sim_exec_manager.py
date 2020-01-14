@@ -136,29 +136,25 @@ class SimExecManager:
 
 
 
-sim_params = SimulationParams(num_of_tasks=9999, avg_load_level=6, initial_num_of_servers=5, average_rate=5,
-                              server_startup_time=20, pie_file="pie_dpl_005.txt")
+sim_params = SimulationParams(num_of_tasks=18999, avg_load_level=6, initial_num_of_servers=5, average_rate=5,
+                              server_startup_time=8, pie_file="pie_dpl_013.txt")
 
 s = SimExecManager (sim_params, lb_type="bellman", as_type="bellman")
 s.run_simulation ()
 
-sim_params = SimulationParams(num_of_tasks=9999, avg_load_level=6, initial_num_of_servers=5, average_rate=5,
-                              server_startup_time=10, pie_file="pie_dpl_01.txt")
+for sst in [2,5,8,10,20]:
+    sim_params = SimulationParams(num_of_tasks=18999, avg_load_level=6, initial_num_of_servers=5, average_rate=5, server_startup_time=sst)
+    s = SimExecManager (sim_params, lb_type="jsq", as_type="threshold")
+    s.run_simulation ()
 
-s = SimExecManager (sim_params, lb_type="bellman", as_type="bellman")
-s.run_simulation ()
+for rate in range(3,7):
+    sim_params = SimulationParams(num_of_tasks=18999, avg_load_level=6, initial_num_of_servers=5, average_rate=rate, server_startup_time=20)
+    s = SimExecManager (sim_params, lb_type="jsq", as_type="threshold")
+    s.run_simulation ()
 
-sim_params = SimulationParams(num_of_tasks=9999, avg_load_level=6, initial_num_of_servers=5, average_rate=5,
-                              server_startup_time=5, pie_file="pie_dpl_02.txt")
-
-s = SimExecManager (sim_params, lb_type="bellman", as_type="bellman")
-s.run_simulation ()
-
-sim_params = SimulationParams(num_of_tasks=9999, avg_load_level=6, initial_num_of_servers=5, average_rate=5,
-                              server_startup_time=2, pie_file="pie_dpl_05.txt")
-
-s = SimExecManager (sim_params, lb_type="bellman", as_type="bellman")
-s.run_simulation ()
+    sim_params.pie_file = "pie_losing_" + str(rate) + ".txt"
+    s = SimExecManager (sim_params, lb_type="bellman", as_type="bellman")
+    s.run_simulation ()
 
 '''
 for i in range(65,90,5):

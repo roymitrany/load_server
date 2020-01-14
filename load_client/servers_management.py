@@ -9,6 +9,7 @@ import requests as req
 from typing import TYPE_CHECKING
 
 from requests import Response
+#from load_client.sim_exec_manager import SimExecManager
 
 from load_client.global_vars import full_srv_ip_addr_list, full_srv_port_list
 
@@ -155,15 +156,15 @@ class Server:
 
 
 class ServerManager:
-    cool_down_period = 5.0
     total_scale_out_counter = 0
     total_scale_in_counter = 0
 
-    def __init__(self, sim_mgr, initial_num_of_servers:int):
+    def __init__(self, sim_mgr:'SimExecManager', initial_num_of_servers:int):
         self.sim_mgr = sim_mgr
         self.full_srv_list: List[Server] = []
         self.active_srv_list: List[Server] = [] # Servers that are active, including non available and draining
         self.available_srv_list: List[Server] = [] # Available servers only. LB should look at this list
+        self.cool_down_period = sim_mgr.simulation_params.server_startup_time+5
 
 
         for i in range(len(full_srv_ip_addr_list)):
