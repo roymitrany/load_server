@@ -283,8 +283,10 @@ class NumOfServersData(DataCollector):
         self.counter += 1
         self.x_list.append(self.counter*data_collection_interval) # add the x axis (currently counter) element
         line = str(self.counter) # start a line string for the csv record
-        line = line + "," + str(len(self.srv_mgr.active_srv_list))
-        self.y_list[0].append(len(self.srv_mgr.active_srv_list))
+        #srv_num:int = len(self.srv_mgr.active_srv_list) # This is the right value to collect
+        srv_num:int = len(self.srv_mgr.available_srv_list) # we temporarily use this value instead
+        line = line + "," + str(srv_num)
+        self.y_list[0].append(srv_num)
         self.f.write(line + "\n") # write the csv line to the file
 
     def print_data(self):

@@ -1,10 +1,9 @@
 import os
 import re
-import sys
 
 from load_client.global_vars import reward_scale_out, reward_scale_in, reward_reject, reward_response, \
-    reward_delay_per_ms, reward_use_per_second, exec_summary_filename, response_duration_filename, \
-    num_of_servers_filename, calculated_cost_filename
+    reward_use_per_second, exec_summary_filename, response_duration_filename, reward_delay_per_ms, \
+    num_of_servers_filename
 from typing import TYPE_CHECKING
 
 
@@ -13,11 +12,11 @@ class CostCalculator:
     def __init__(self, res_path):
         self.res_path = res_path
         self.scale_out_cost = self.scale_in_cost = self.rejection_cost = self.delay_cost  = 0
-        self.response_cost = self.server_execution_cost = self.total_reward = self.reward_per_response = 0
+        self.response_cost = self.server_execution_cost = self.total_reward = self.reward_per_task = 0
 
 
     def calculate_cost(self):
-        rejection_counter:int = 0
+        num_of_tasks:int = 0
         # Take from summary data
         filename = os.path.join (self.res_path, exec_summary_filename)
         f = open(filename, "r")
@@ -28,6 +27,9 @@ class CostCalculator:
         match_obj = re.match (r'.+scale_ins:\s+(\d+)', res_str, flags=re.DOTALL)
         if match_obj:
             self.scale_in_cost = int (match_obj.group (1))*reward_scale_in
+        match_obj = re.match (r'.+num_of_tasks:\s+(\d+)', res_str, flags=re.DOTALL)
+        if match_obj:
+            num_of_tasks = int (match_obj.group (1))
         match_obj = re.match (r'.+rejections:\s+(\d+)', res_str, flags=re.DOTALL)
         if match_obj:
             rejection_counter = int (match_obj.group (1))
@@ -63,8 +65,8 @@ class CostCalculator:
                             + self.response_cost + self.delay_cost + self.server_execution_cost
 
 
-        if response_counter!=0:
-            self.reward_per_response = self.total_reward/response_counter
+        if num_of_tasks!=0:
+            self.reward_per_task = self.total_reward / num_of_tasks
         f.close()
 
         # Save the calculated cost
@@ -93,23 +95,29 @@ class CostCalculator:
         cost_str += "server_execution_cost: " + str(self.server_execution_cost) + "\n"
         cost_str += "response_cost: " + str(self.response_cost) + "\n"
         cost_str += "total_reward: " + str(self.total_reward) + "\n"
-        cost_str += "reward_per_response: " + str(self.reward_per_response)
+        cost_str += "reward_per_task: " + str(self.reward_per_task)
         f.write(cost_str + "\n\n\n")
         f.close()
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
+    '''if len(sys.argv) < 2:
         print ("Please provide path as parameter")
         exit(-1)
     result_path = sys.argv[1]
     if not os.path.isdir(result_path):
         print (result_path + " is not a directory")
         exit(-1)
-    summary_filename = os.path.join (result_path, exec_summary_filename)
-    if not os.path.isfile(summary_filename):
-        print ("There are no results in this directory: " + result_path)
-        exit(-1)
-
-    cost_calc_obj = CostCalculator (result_path)
-    cost_calc_obj.calculate_cost()
+    '''
+    root_path = "C:\\Users\\Roy\\Technion\OneDrive - Technion\\WebDev\\mark_lb_model\\load_client\\results\\mark_model_2"
+    dirlist = os.listdir(root_path)
+    for dir in dirlist:
+        result_path = os.path.join (root_path, dir)
+        ok = True
+        summary_filename = os.path.join (result_path, exec_summary_filename)
+        if not os.path.isfile (summary_filename):
+            print ("There are no results in this directory: " + result_path)
+            ok = False
+        if ok:
+            cost_calc_obj = CostCalculator (result_path)
+            cost_calc_obj.calculate_cost()
 
